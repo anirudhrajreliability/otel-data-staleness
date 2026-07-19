@@ -58,6 +58,21 @@ run "scale: multi-partition topic emits age (events_scale)" \
 # ---------------------------------------------------------------------------
 # GAP #3 — AWS-NATIVE LIVE: Kinesis (LocalStack), Schema Registry, DB migration.
 # ---------------------------------------------------------------------------
+# Create the Kinesis stream + records deterministically via awslocal INSIDE the
+# localstack container (reliable regardless of init-hook timing), then let the
+# Collector (given dummy creds) scrape it.
+echo "Creating LocalStack Kinesis stream + records..."
+$DC exec -T localstack awslocal kinesis create-stream --stream-name clickstream --shard-count 1 >/dev/null 2>&1 || true
+for i in $(seq 1 30); do
+  st=$($DC exec -T localstack awslocal kinesis describe-stream-summary --stream-name clickstream \
+        --query 'StreamDescriptionSummary.StreamStatus' --output text 2>/dev/null | tr -d '\r\n ')
+  [ "$st" = "ACTIVE" ] && { echo "  stream ACTIVE"; break; }
+  sleep 1
+done
+for i in $(seq 1 10); do
+  $DC exec -T localstack awslocal kinesis put-record --stream-name clickstream \
+    --partition-key "pk-$i" --data "event-$i" >/dev/null 2>&1 || true
+done
 run "aws: Kinesis stream freshness (LocalStack)" \
   $V --wait 150 present --source clickstream
 run "aws: Schema Registry version drift detected" \

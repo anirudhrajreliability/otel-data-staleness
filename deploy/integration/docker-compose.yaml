@@ -10,6 +10,14 @@ services:
   otel-collector:
     build: { context: ../.., dockerfile: collector/Dockerfile }
     command: ["--config=/etc/otelcol/config.yaml"]
+    environment:
+      # Dummy creds so the AWS SDK can SIGN requests to LocalStack (LocalStack
+      # ignores their validity). IMDS disabled so it never reaches for a real
+      # instance role. In production you'd omit these and use the instance/pod role.
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: us-east-1
+      AWS_EC2_METADATA_DISABLED: "true"
     volumes:
       - ./collector-config.yaml:/etc/otelcol/config.yaml:ro
       - demodata:/data

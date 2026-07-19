@@ -19,6 +19,10 @@ jobs:
         run: cd python && python -m pytest -q
       - name: Conformance
         run: PYTHONPATH=python/src python conformance/runner.py
+      - name: Integration harness unit tests (assertion math + SDK wiring)
+        run: |
+          python -m pytest -q deploy/integration/test_validate.py
+          cd deploy/integration/sdk-service && python -m pytest -q
 
   go-processor:
     runs-on: ubuntu-latest

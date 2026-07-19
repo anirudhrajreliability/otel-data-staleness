@@ -43,6 +43,11 @@ for the per-release changelog.
   a language-agnostic conformance suite.
 - **Provable end-to-end**: a one-command demo with real Postgres + Kafka + a
   Grafana dashboard, and a turnkey EC2 test script.
+- **Real-workload validated**: an integration suite asserts *numeric accuracy*
+  (age == a known injected offset), deterministic Kafka consumer lag, the
+  AWS-native paths (LocalStack Kinesis, Confluent Schema Registry, DB-migration
+  drift), the SDK in the live path, and failure behavior (probe errors, clock-skew
+  clamping, recovery). See [`docs/INTEGRATION-VALIDATION.md`](docs/INTEGRATION-VALIDATION.md).
 
 See **[`FEATURES.md`](FEATURES.md)** for the full plain-English feature list.
 

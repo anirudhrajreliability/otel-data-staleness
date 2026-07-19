@@ -16,8 +16,8 @@ _build/
 *.tmp
 _deltest.tmp
 
-# Python (not needed to build the Collector)
-python/
+# Python build caches (the python/ source IS needed by the sdk-service image,
+# so it is intentionally NOT excluded).
 __pycache__/
 **/__pycache__/
 *.pyc
@@ -27,14 +27,16 @@ __pycache__/
 build/
 dist/
 
-# Docs, spec, paper, and other non-build material
+# Docs, spec, paper, and other non-build material.
+# NOTE: python/ and deploy/ are deliberately NOT excluded — the integration
+# sdk-service image builds from the repo root and COPYs python/ and
+# deploy/integration/sdk-service/. The collector build ignores them anyway.
 paper/
 docs/
 otep/
 spec/
 model/
 conformance/
-deploy/
 *.md
 *.pdf
 

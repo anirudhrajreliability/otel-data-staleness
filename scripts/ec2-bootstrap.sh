@@ -42,3 +42,19 @@ sudo docker compose -f deploy/ec2-demo/docker-compose.yaml up -d --build
 
 step "Smoke test"
 bash scripts/smoke-test.sh
+
+# Deep real-workload validation (accuracy, scale, AWS-native, SDK-live, chaos).
+# Opt-in because it stands up a heavier stack (Schema Registry + LocalStack +
+# Redis + SDK build) — recommended on t3.xlarge. Set RUN_INTEGRATION=1 to run it
+# automatically after the smoke test; otherwise run it yourself when ready.
+if [ "${RUN_INTEGRATION:-0}" = "1" ]; then
+  step "Deep real-workload validation (RUN_INTEGRATION=1)"
+  bash scripts/ec2-integration.sh
+else
+  echo
+  echo "Smoke test done. For the FULL real-workload validation (numeric accuracy,"
+  echo "scale/known-lag, LocalStack Kinesis + Schema Registry + DB-migration drift,"
+  echo "the SDK in the live path, and chaos/failure), run:"
+  echo "    bash scripts/ec2-integration.sh        # recommended on t3.xlarge"
+  echo "(or re-run this script with RUN_INTEGRATION=1)."
+fi

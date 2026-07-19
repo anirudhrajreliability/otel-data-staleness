@@ -88,3 +88,25 @@ func TestKinesisConfigValidation(t *testing.T) {
 		t.Fatalf("unexpected: %v", err)
 	}
 }
+
+// TestKinesisEndpointOverride verifies the real client builder accepts an
+// endpoint override (used to target LocalStack in integration tests / a VPC
+// endpoint in prod) and constructs a client without contacting AWS.
+func TestKinesisEndpointOverride(t *testing.T) {
+	// Endpoint is optional, so a kinesis source with it set must still validate.
+	cfg := kincfg()
+	cfg.Endpoint = "http://localstack:4566"
+	c := &Config{CollectionInterval: time.Second, Sources: []SourceConfig{cfg}}
+	if err := c.Validate(); err != nil {
+		t.Fatalf("kinesis with endpoint should validate: %v", err)
+	}
+	// The real builder should construct a client offline (region set, no calls).
+	client, err := newKinesisClient(cfg)
+	if err != nil {
+		t.Fatalf("newKinesisClient with endpoint: %v", err)
+	}
+	if client == nil {
+		t.Fatal("expected a non-nil kinesis client")
+	}
+	client.close()
+}

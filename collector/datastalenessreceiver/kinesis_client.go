@@ -30,7 +30,15 @@ func newKinesisClient(cfg SourceConfig) (kinesisClient, error) {
 	if lb <= 0 {
 		lb = time.Hour
 	}
-	return &kinClient{cl: kinesis.NewFromConfig(awscfg), stream: cfg.StreamName, lookback: lb, now: time.Now}, nil
+	// Optional endpoint override: real AWS when empty; a VPC/interface endpoint
+	// or a local emulator (LocalStack) when set. Enables live integration tests
+	// of the Kinesis path without a real AWS stream.
+	optFns := []func(*kinesis.Options){}
+	if cfg.Endpoint != "" {
+		endpoint := cfg.Endpoint
+		optFns = append(optFns, func(o *kinesis.Options) { o.BaseEndpoint = aws.String(endpoint) })
+	}
+	return &kinClient{cl: kinesis.NewFromConfig(awscfg, optFns...), stream: cfg.StreamName, lookback: lb, now: time.Now}, nil
 }
 
 func (k *kinClient) describe(ctx context.Context) ([]kShard, error) {

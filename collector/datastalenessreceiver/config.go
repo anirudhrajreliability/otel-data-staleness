@@ -71,6 +71,10 @@ type SourceConfig struct {
 	// Lookback bounds how far back the scraper reads to find the newest record
 	// (default 1h). Set it comfortably larger than the freshness SLA.
 	Lookback time.Duration `mapstructure:"lookback"`
+	// Endpoint overrides the AWS endpoint URL. Leave empty for real AWS; set it
+	// to target a VPC/interface endpoint or a local emulator (e.g. LocalStack
+	// "http://localstack:4566") for integration testing without real AWS.
+	Endpoint string `mapstructure:"endpoint"`
 
 	// --- schema_registry (Confluent Schema Registry version drift) -------
 	RegistryURL       string `mapstructure:"registry_url"`

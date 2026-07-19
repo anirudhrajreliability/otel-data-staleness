@@ -1,0 +1,76 @@
+# Integration-stack Collector config: scrapes REAL Postgres, Kafka, files,
+# LocalStack Kinesis, Confluent Schema Registry, and a DB migration table, AND
+# accepts OTLP from the Python SDK service — so every producer path lands in one
+# Prometheus with consistent metric names (add_metric_suffixes: false).
+receivers:
+  datastaleness:
+    collection_interval: 10s
+    sources:
+      # --- SQL (Postgres) ------------------------------------------------
+      - {type: sql, name: orders_fresh, system: postgresql, namespace: demo,
+         driver: postgres, dsn: "postgres://postgres:demopw@postgres:5432/postgres?sslmode=disable",
+         table: fresh, timestamp_column: updated_at, sla_threshold_seconds: 60}
+      - {type: sql, name: orders_stale, system: postgresql, namespace: demo,
+         driver: postgres, dsn: "postgres://postgres:demopw@postgres:5432/postgres?sslmode=disable",
+         table: stale, timestamp_column: updated_at, sla_threshold_seconds: 60}
+      # accuracy: high SLA; the harness injects a known epoch and asserts age.
+      - {type: sql, name: orders_accuracy, system: postgresql, namespace: demo,
+         driver: postgres, dsn: "postgres://postgres:demopw@postgres:5432/postgres?sslmode=disable",
+         table: accuracy, timestamp_column: updated_at, sla_threshold_seconds: 3600}
+      # skew: future timestamp -> age must clamp to >=0.
+      - {type: sql, name: orders_skew, system: postgresql, namespace: demo,
+         driver: postgres, dsn: "postgres://postgres:demopw@postgres:5432/postgres?sslmode=disable",
+         table: skew, timestamp_column: updated_at, sla_threshold_seconds: 3600}
+
+      # --- Kafka ---------------------------------------------------------
+      # orders_stream: 1 partition, known consumer-group lag (loadgen resets the
+      # committed offset to a fixed backlog) -> records.behind is deterministic.
+      - {type: kafka, name: orders_stream, system: kafka, brokers: [kafka:9092],
+         topic: orders_stream, consumer_group: analytics, sla_threshold_seconds: 60}
+      # events_scale: multi-partition topic under a sustained producer (scale).
+      - {type: kafka, name: events_scale, system: kafka, brokers: [kafka:9092],
+         topic: events_scale, sla_threshold_seconds: 60}
+
+      # --- files ---------------------------------------------------------
+      - {type: file, name: export_fresh, system: s3, path: /data/fresh.txt, sla_threshold_seconds: 60}
+      - {type: file, name: export_stale, system: s3, path: /data/stale.txt, sla_threshold_seconds: 60}
+
+      # --- Kinesis via LocalStack (endpoint override) --------------------
+      - {type: kinesis, name: clickstream, system: kinesis, stream_name: clickstream,
+         aws_region: us-east-1, endpoint: "http://localstack:4566",
+         lookback: 1h, sla_threshold_seconds: 300}
+
+      # --- Confluent Schema Registry version drift -----------------------
+      # documented pinned to "1"; sr-seed registers v1 then v2 -> 1 version behind.
+      - {type: schema_registry, name: orders_schema, system: kafka,
+         registry_url: "http://schema-registry:8081", subject: "orders-value",
+         documented_version: "1", sla_threshold_seconds: 86400}
+
+      # --- DB migration drift --------------------------------------------
+      # applied 0005 vs expected current 0007 -> drift is visible.
+      - {type: db_migration, name: db_schema, system: postgresql,
+         driver: postgres, dsn: "postgres://postgres:demopw@postgres:5432/postgres?sslmode=disable",
+         version_query: "SELECT version FROM demo.schema_migrations ORDER BY applied_at DESC LIMIT 1",
+         current_version: "0007", sla_threshold_seconds: 86400}
+
+  # OTLP in from the Python SDK service, so SDK metrics share this exporter and
+  # come out with identical names to the receiver's.
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  datastaleness: {compute_age_from_last_update: false, evaluate_sla: true, default_threshold: 60s}
+  batch: {}
+
+exporters:
+  prometheus: {endpoint: 0.0.0.0:8889, add_metric_suffixes: false}
+  debug: {verbosity: normal}
+
+service:
+  pipelines:
+    metrics:
+      receivers: [datastaleness, otlp]
+      processors: [datastaleness, batch]
+      exporters: [prometheus, debug]

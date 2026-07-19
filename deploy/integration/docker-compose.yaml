@@ -1,0 +1,115 @@
+# Comprehensive integration stack. Exercises EVERY producer path against REAL
+# (or faithfully-emulated) backends so the harness can assert numeric accuracy,
+# scale, AWS-native paths, the SDK, and failure behavior — not just presence.
+#
+#   Collector receiver  -> Postgres, Kafka, files, LocalStack Kinesis,
+#                          Confluent Schema Registry, DB migration table
+#   Python SDK service  -> Postgres + Redis, exported via OTLP -> Collector
+#   All metrics land in one Prometheus (asserted by validate.py).
+services:
+  otel-collector:
+    build: { context: ../.., dockerfile: collector/Dockerfile }
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./collector-config.yaml:/etc/otelcol/config.yaml:ro
+      - demodata:/data
+    ports: ["8889:8889", "4318:4318"]
+    depends_on: [postgres, kafka]
+
+  postgres:
+    image: postgres:16
+    environment: { POSTGRES_PASSWORD: demopw }
+    volumes:
+      - ./seed.sql:/docker-entrypoint-initdb.d/seed.sql:ro
+    ports: ["5432:5432"]
+
+  redis:
+    image: redis:7
+
+  # keeps the SDK cache key fresh (epoch seconds) so the cache probe reads ~0 age
+  redis-freshener:
+    image: redis:7
+    command: ["sh", "-c", "until redis-cli -h redis ping; do sleep 2; done; while true; do redis-cli -h redis set sdk_cache:last_write $(date +%s); sleep 5; done"]
+    depends_on: [redis]
+
+  # updates demo.fresh, demo.sdk_orders, /data/fresh.txt; seeds /data/stale.txt
+  freshener:
+    image: postgres:16
+    command: ["bash", "/freshener.sh"]
+    volumes:
+      - ./freshener.sh:/freshener.sh:ro
+      - demodata:/data
+    depends_on: [postgres]
+
+  kafka:
+    image: apache/kafka:3.8.0
+    ports: ["9092:9092"]
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+
+  # deterministic consumer lag (orders_stream) + sustained load (events_scale)
+  loadgen:
+    image: apache/kafka:3.8.0
+    command: ["bash", "/loadgen.sh"]
+    volumes:
+      - ./loadgen.sh:/loadgen.sh:ro
+    depends_on: [kafka]
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.6.1
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:9092
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+    depends_on: [kafka]
+
+  # registers two schema versions (runs on the SR image -> curl+bash present)
+  sr-seed:
+    image: confluentinc/cp-schema-registry:7.6.1
+    entrypoint: ["bash", "/sr-seed.sh"]
+    volumes:
+      - ./sr-seed.sh:/sr-seed.sh:ro
+    depends_on: [schema-registry]
+
+  localstack:
+    image: localstack/localstack:3
+    environment:
+      SERVICES: kinesis
+    ports: ["4566:4566"]
+
+  # creates the Kinesis stream + puts records (runs on the aws-cli image)
+  localstack-init:
+    image: amazon/aws-cli:2.17.0
+    entrypoint: ["bash", "/localstack-init.sh"]
+    volumes:
+      - ./localstack-init.sh:/localstack-init.sh:ro
+    depends_on: [localstack]
+
+  # the SDK, in the live path: probes real Postgres + Redis, exports via OTLP
+  sdk-service:
+    build: { context: ../.., dockerfile: deploy/integration/sdk-service/Dockerfile }
+    environment:
+      OTLP_ENDPOINT: http://otel-collector:4318/v1/metrics
+      PG_DSN: "host=postgres user=postgres password=demopw dbname=postgres"
+      REDIS_URL: "redis://redis:6379/0"
+    depends_on: [otel-collector, postgres, redis]
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports: ["9090:9090"]
+
+volumes:
+  demodata:

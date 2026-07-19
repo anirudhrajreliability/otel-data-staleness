@@ -1,4 +1,7 @@
 from datetime import datetime, timezone
+from decimal import Decimal
+
+import pytest
 
 from otel_staleness import StalenessMonitor, conventions as sc
 from otel_staleness.probes import (
@@ -6,6 +9,7 @@ from otel_staleness.probes import (
     CacheFreshnessProbe, ObjectStoreFreshnessProbe,
 )
 from otel_staleness.probes.kafka import PartitionState
+from otel_staleness._timeutil import to_epoch
 
 
 def test_sql_probe_reading():
@@ -17,6 +21,25 @@ def test_sql_probe_reading():
     assert r.method == sc.Method.MAX_TIMESTAMP
     assert r.last_update_epoch == 900.0
     assert r.compute_age(now=1000.0) == 100.0
+
+
+def test_sql_probe_accepts_decimal_epoch():
+    # PostgreSQL EXTRACT(EPOCH FROM ...) returns numeric -> psycopg2 Decimal.
+    p = SQLFreshnessProbe(lambda: Decimal("900.5"), source_name="orders",
+                          system=sc.System.POSTGRESQL, sla_threshold_seconds=300)
+    r = list(p.read())[0]
+    assert r.last_update_epoch == 900.5
+    assert r.compute_age(now=1000.5) == 100.0
+
+
+def test_to_epoch_types():
+    assert to_epoch(Decimal("1700000000")) == 1700000000.0
+    assert to_epoch(5) == 5.0
+    assert to_epoch(None) is None
+    with pytest.raises(TypeError):
+        to_epoch(True)          # bool is never a valid timestamp
+    with pytest.raises(TypeError):
+        to_epoch("not-a-number")
 
 
 def test_sql_probe_accepts_datetime():

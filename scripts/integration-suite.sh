@@ -27,10 +27,22 @@ echo "############################################################"
 # GAP #2 — ACCURACY: inject a KNOWN epoch (120s ago) into demo.accuracy and
 # assert last_update.timestamp equals it exactly and age is ~120s.
 # ---------------------------------------------------------------------------
+echo "Waiting for Postgres seed (demo.accuracy) to be created..."
+for i in $(seq 1 45); do
+  if $DC exec -T postgres psql -U postgres -tAc "SELECT to_regclass('demo.accuracy')" 2>/dev/null | grep -q accuracy; then
+    echo "  demo.accuracy is ready"; break
+  fi
+  sleep 2
+done
 EPOCH=$(date -d '120 seconds ago' +%s)
 echo "Injecting demo.accuracy row with updated_at = epoch $EPOCH (120s ago)"
-$DC exec -T postgres psql -U postgres -q -c \
-  "INSERT INTO demo.accuracy (updated_at) VALUES (to_timestamp($EPOCH));" || true
+for attempt in 1 2 3; do
+  if $DC exec -T postgres psql -U postgres -q -c \
+      "INSERT INTO demo.accuracy (updated_at) VALUES (to_timestamp($EPOCH));" 2>/dev/null; then
+    echo "  injected"; break
+  fi
+  echo "  insert attempt $attempt failed; retrying"; sleep 3
+done
 run "accuracy: age == known injected offset (±)" \
   $V --wait 120 age --source orders_accuracy --expect-epoch "$EPOCH" --ts-tol 3 --age-tol 30
 

@@ -2,18 +2,24 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Optional
 
 
 def to_epoch(value) -> Optional[float]:
-    """Normalize None / int / float / datetime to Unix seconds.
+    """Normalize None / int / float / Decimal / datetime to Unix seconds.
 
+    Decimal is accepted because common paths yield it — e.g. PostgreSQL's
+    ``EXTRACT(EPOCH FROM ...)`` returns numeric, which psycopg2 maps to Decimal.
     Naive datetimes are treated as UTC. Raises TypeError for other types so a
     misconfigured source fails loudly rather than fabricating a value.
     """
     if value is None:
         return None
-    if isinstance(value, (int, float)):
+    if isinstance(value, bool):
+        # bool is a subclass of int; a boolean is never a valid timestamp.
+        raise TypeError("cannot convert bool to epoch seconds")
+    if isinstance(value, (int, float, Decimal)):
         return float(value)
     if isinstance(value, datetime):
         if value.tzinfo is None:

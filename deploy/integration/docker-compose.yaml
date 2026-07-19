@@ -87,14 +87,9 @@ services:
     environment:
       SERVICES: kinesis
     ports: ["4566:4566"]
-
-  # creates the Kinesis stream + puts records (runs on the aws-cli image)
-  localstack-init:
-    image: amazon/aws-cli:2.17.0
-    entrypoint: ["bash", "/localstack-init.sh"]
+    # native init hook: awslocal creates the stream + puts records when ready
     volumes:
-      - ./localstack-init.sh:/localstack-init.sh:ro
-    depends_on: [localstack]
+      - ./localstack-init.sh:/etc/localstack/init/ready.d/init-kinesis.sh:ro
 
   # the SDK, in the live path: probes real Postgres + Redis, exports via OTLP
   sdk-service:

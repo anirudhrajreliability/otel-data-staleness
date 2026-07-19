@@ -1,0 +1,42 @@
+{
+  "description": "Language-agnostic conformance vectors for the data-staleness convention. Given 'now' and a reading's inputs, an implementation MUST emit the 'expected' metric values (seconds; omitted metrics need not be emitted).",
+  "convention_version": "0.3.0",
+  "cases": [
+    {
+      "name": "age_from_last_update",
+      "now": 1000.0,
+      "input": { "source_system": "postgresql", "source_name": "orders", "last_update_epoch": 940.0, "method": "max_timestamp" },
+      "expected": { "data.staleness.age": 60.0 }
+    },
+    {
+      "name": "explicit_age_preferred",
+      "now": 1000.0,
+      "input": { "source_system": "kafka", "source_name": "t", "age_seconds": 12.5, "last_update_epoch": 1.0 },
+      "expected": { "data.staleness.age": 12.5 }
+    },
+    {
+      "name": "age_clamped_non_negative",
+      "now": 1000.0,
+      "input": { "source_system": "s3", "source_name": "p", "last_update_epoch": 1500.0 },
+      "expected": { "data.staleness.age": 0.0 }
+    },
+    {
+      "name": "sla_breached",
+      "now": 1000.0,
+      "input": { "source_system": "dbt", "source_name": "m", "last_update_epoch": 800.0, "sla_threshold_seconds": 100.0 },
+      "expected": { "data.staleness.age": 200.0, "data.staleness.sla.threshold": 100.0, "data.staleness.sla.breached": 1 }
+    },
+    {
+      "name": "sla_not_breached",
+      "now": 1000.0,
+      "input": { "source_system": "dbt", "source_name": "m", "last_update_epoch": 950.0, "sla_threshold_seconds": 100.0 },
+      "expected": { "data.staleness.sla.breached": 0 }
+    },
+    {
+      "name": "lag_and_records_behind",
+      "now": 1000.0,
+      "input": { "source_system": "kafka", "source_name": "t", "partition": "0", "last_update_epoch": 980.0, "lag_seconds": 3.0, "records_behind": 42 },
+      "expected": { "data.staleness.age": 20.0, "data.staleness.lag": 3.0, "data.staleness.records.behind": 42 }
+    }
+  ]
+}

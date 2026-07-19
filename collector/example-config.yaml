@@ -1,0 +1,86 @@
+# Example config for the custom Collector built from builder-config.yaml.
+# Uses BOTH data-staleness components. Note: the receiver already emits
+# data.staleness.age, so leave the processor's compute_age_from_last_update
+# OFF here to avoid duplicate age series; the processor is used for SLA policy.
+receivers:
+  datastaleness:
+    collection_interval: 30s
+    sources:
+      # Trustworthy mode: point at a load-audit/watermark table rather than
+      # scanning the data table. Returns (freshness_ts[, records_behind]).
+      - type: sql
+        name: orders
+        system: postgresql
+        namespace: public
+        driver: postgres        # registered out of the box (also: mysql)
+        dsn: "postgres://user:pass@db:5432/app?sslmode=disable"
+        query: >
+          SELECT last_loaded_at, expected_rows - loaded_rows
+          FROM etl.load_audit WHERE table_name = 'orders'
+        sla_threshold_seconds: 300
+        query_timeout: 5s
+      # Convenience mode: SELECT MAX(updated_at) FROM public.events.
+      - type: sql
+        name: events
+        system: postgresql
+        namespace: public
+        driver: postgres
+        dsn: "postgres://user:pass@db:5432/app?sslmode=disable"
+        table: events
+        timestamp_column: updated_at
+        sla_threshold_seconds: 600
+      - type: kafka
+        name: clickstream
+        system: kafka
+        brokers: [broker-1:9092, broker-2:9092]
+        topic: clickstream
+        consumer_group: analytics          # omit for topic-freshness only
+        measure_time_lag: true              # emit data.staleness.lag (one fetch/partition)
+        sasl_mechanism: scram-sha-512       # "", plain, scram-sha-256/512, aws-msk-iam
+        username: ${env:KAFKA_USER}
+        password: ${env:KAFKA_PASSWORD}
+        sla_threshold_seconds: 60
+        query_timeout: 10s
+      - type: kinesis
+        name: order_events
+        system: kinesis
+        stream_name: order-events
+        aws_region: us-east-1               # creds via env or the EC2/EKS role
+        lookback: 1h
+        sla_threshold_seconds: 300
+      - type: schema_registry
+        name: orders-value
+        system: kafka
+        registry_url: http://schema-registry:8081
+        subject: orders-value
+        documented_version: "3"             # version your contract/consumer pins
+      - type: db_migration
+        name: app-db-schema
+        system: postgresql
+        driver: postgres
+        dsn: "postgres://user:pass@db:5432/app?sslmode=disable"
+        version_query: "SELECT MAX(version) FROM schema_migrations"
+        current_version: "20240115"
+      - type: file
+        name: daily_export
+        system: s3
+        path: /tmp/daily.parquet
+        sla_threshold_seconds: 86400
+
+processors:
+  datastaleness:
+    compute_age_from_last_update: false
+    evaluate_sla: true
+    default_threshold: 5m
+  batch: {}
+
+exporters:
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    metrics:
+      receivers: [datastaleness]
+      processors: [datastaleness, batch]
+      exporters: [debug]

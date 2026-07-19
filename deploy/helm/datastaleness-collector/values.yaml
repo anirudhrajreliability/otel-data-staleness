@@ -1,0 +1,37 @@
+image:
+  repository: otelcol-datastaleness   # image built via collector/Dockerfile
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+service:
+  prometheusPort: 8889
+
+# Collector config rendered into a ConfigMap. Override to add your sources.
+collectorConfig:
+  receivers:
+    datastaleness:
+      collection_interval: 30s
+      sources:
+        - type: file
+          name: daily_export
+          system: s3
+          path: /data/daily.parquet
+          sla_threshold_seconds: 86400
+  processors:
+    datastaleness:
+      compute_age_from_last_update: true
+      evaluate_sla: true
+      default_threshold: 5m
+    batch: {}
+  exporters:
+    prometheus:
+      endpoint: 0.0.0.0:8889
+      add_metric_suffixes: false
+  service:
+    pipelines:
+      metrics:
+        receivers: [datastaleness]
+        processors: [datastaleness, batch]
+        exporters: [prometheus]

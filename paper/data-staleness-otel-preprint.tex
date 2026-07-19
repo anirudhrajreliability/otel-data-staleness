@@ -1,0 +1,473 @@
+\documentclass[11pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{times}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{caption}
+
+\hypersetup{colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=blue}
+
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  frame=single,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  backgroundcolor=\color{gray!8},
+}
+
+\title{\textbf{Standardizing Data Staleness Telemetry:\\
+A Vendor-Neutral OpenTelemetry Semantic Convention\\
+for Data Freshness}}
+
+\author{Anirudh Rajmohan}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Data freshness---how recently a dataset reflects the real world---is a
+first-class reliability concern for analytics, machine learning, and
+operational decision systems. Yet despite decades of theory on information
+freshness (the \emph{Age of Information}, AoI) and a thriving market of
+data-observability tools, there is no portable, vendor-neutral way to
+\emph{emit} freshness as telemetry. OpenTelemetry (OTEL), now the de facto
+standard for observability signals, defines semantic conventions for database
+and messaging operations but none for data staleness; freshness today is
+re-implemented, incompatibly, inside each observability vendor and each data
+platform. We address this gap with three contributions. First, we propose a
+compact OpenTelemetry semantic convention for data staleness---a small set of
+metrics (\texttt{data.staleness.age}, \texttt{lag}, \texttt{last\_update},
+\texttt{records.behind}, and SLA threshold/breach signals) and attributes that
+unify freshness across SQL warehouses, streaming systems, batch pipelines,
+caches, NoSQL and lakehouse stores, and search/vector indexes under one
+vocabulary, grounded in the AoI model, including a \emph{differential}
+(source-relative) form for indexes and replicas that trail their upstream.
+Second, we provide a
+reference implementation: a Python SDK that turns per-source \emph{probes} into
+standardized metrics, and an OpenTelemetry Collector processor that centrally
+derives age and evaluates freshness SLAs. Third, we evaluate the
+implementation's correctness and overhead, measuring per-source emission cost
+of \(22\)--\(39\,\mu s\) in the SDK and sub-microsecond per-point processing in
+the Collector. Our aim is not a new freshness metric but the
+\emph{consolidation} of a well-studied one into the dominant observability
+framework, so that freshness becomes as portable and queryable as latency or
+error rate. The artifacts are released as open source under Apache-2.0.
+\end{abstract}
+
+\section{Introduction}
+Modern organizations make decisions on derived data: dashboards, feature
+stores, recommendation indexes, fraud models, and financial reports all consume
+data that has traveled through ingestion, transformation, and serving layers.
+When that pipeline stalls, the data does not become \emph{wrong} so much as
+\emph{old}: a dashboard silently shows yesterday's numbers, a model scores on
+features that no longer reflect reality. This failure mode---\emph{staleness}---
+is distinct from the failures that traditional observability captures well.
+A pipeline can have zero errors and low latency on every individual operation
+and still serve hours-old data because an upstream producer stopped.
+
+Two largely separate communities have studied this. In networked and
+cyber-physical systems, the \emph{Age of Information} (AoI) line of work
+formalizes freshness as the time since the most recently received update was
+generated at its source~\cite{kaul2012,yates2021survey}, with a rich body of
+analysis and variants such as Peak AoI and Age of
+Synchronization~\cite{yates2021survey}. In data engineering, a generation of
+\emph{data-observability} platforms~\cite{montecarlo,metaplane,sifflet} and
+tools such as dbt \texttt{source freshness}~\cite{dbtfreshness} and Kafka lag
+monitors like Burrow~\cite{burrow} measure freshness operationally. Both agree
+on the core quantity. Neither produces it as portable telemetry.
+
+The consequence is fragmentation. Each data-observability vendor models and
+stores freshness differently; freshness computed by dbt cannot be compared,
+in one query, with freshness of a Kafka topic or a Redis cache; and alerting on
+freshness is locked to whichever proprietary system computed it. Meanwhile
+OpenTelemetry (OTEL) has become the cross-vendor standard for emitting metrics,
+traces, and logs, with \emph{semantic conventions} that make signals
+comparable across systems~\cite{otelsemconv}. OTEL defines conventions for
+database client metrics and messaging/Kafka metrics, but these capture
+operation \emph{duration} and message/row \emph{counts}---not how old the data
+is. As of the 1.42 conventions and the published 2026 semantic-conventions
+roadmap, there is no data-freshness metric, and not even a standardized
+consumer-lag metric~\cite{otelmessaging,otelroadmap}.
+
+This paper closes that gap. We argue that freshness deserves the same
+treatment latency received: a small, agreed-upon convention plus reference
+instrumentation, so any producer can emit it and any backend can consume it.
+Concretely, we contribute:
+\begin{enumerate}[nosep]
+  \item \textbf{A semantic convention for data staleness} (Section~\ref{sec:conv}):
+  metric names, units, instrument types, and attributes that express AoI-style
+  freshness uniformly across SQL/warehouse, streaming, batch-pipeline, and
+  cache/object-store sources.
+  \item \textbf{A reference implementation} (Sections~\ref{sec:design}--\ref{sec:impl}):
+  an Apache-2.0 Python SDK (\texttt{otel-staleness}) built on
+  \texttt{opentelemetry-python}, and a Go OpenTelemetry Collector processor
+  (\texttt{datastaleness}) that derives age and evaluates SLAs centrally.
+  \item \textbf{An evaluation} (Section~\ref{sec:eval}) of correctness and
+  runtime overhead, with reproducible microbenchmarks.
+\end{enumerate}
+We are explicit about novelty: the \emph{metric} of staleness is not new---it
+is AoI, and it is what data-observability vendors already compute. Our
+contribution is \emph{standardization and consolidation}: expressing that known
+quantity once, in OpenTelemetry, with a portable implementation.
+
+\section{Background and Related Work}
+\label{sec:related}
+
+\paragraph{Age of Information.}
+AoI was introduced to capture freshness in status-update
+systems~\cite{kaul2012} and has since become a canonical metric for
+information freshness in communication, IoT, and control
+systems~\cite{yates2021survey}. For a source whose freshest delivered update
+was generated at time \(t_e\), the age at wall-clock time \(t\) is
+\(\Delta(t) = t - t_e\): a sawtooth that rises linearly until a newer update
+arrives and resets it. Our \texttt{data.staleness.age} is exactly this
+quantity, applied to data systems rather than wireless links. AoI theory also
+motivates our distinction between \emph{age} (which grows during a stall) and
+one-shot \emph{lag} (the delay a record incurs traversing the pipeline).
+
+\paragraph{Data freshness in data management.}
+The data-management community studied freshness and timeliness well before
+``data observability'' as a term, e.g.\ Peralta's survey of data freshness and
+accuracy in integration systems~\cite{peralta2006}. Freshness is now treated as
+a pillar of data observability alongside volume, schema, distribution, and
+lineage~\cite{montecarlo}. Practitioner definitions converge on the lag between
+when an event occurred and when it is queryable~\cite{metaplane,sifflet}.
+
+\paragraph{Operational tooling.}
+dbt computes source freshness from a \texttt{loaded\_at} column and warns/errors
+against configured thresholds~\cite{dbtfreshness}; Kafka ecosystems track
+consumer lag with tools such as Burrow~\cite{burrow}; commercial platforms
+(Monte Carlo, Metaplane, Sifflet) provide freshness monitoring as a managed
+service~\cite{montecarlo,metaplane,sifflet}. Each is valuable and each is a
+silo: the freshness signal lives inside the tool that produced it.
+
+\paragraph{OpenTelemetry.}
+OTEL standardizes telemetry emission and, via semantic conventions, the
+\emph{meaning} of that telemetry~\cite{otelsemconv}. Conventions exist for
+database and messaging metrics~\cite{otelmessaging}, and the data model includes
+a low-level Prometheus-style ``staleness marker'' for missing
+timeseries---an unrelated concept to data freshness. No convention emits data
+age. Our work proposes one and is structured to serve as the basis for an
+OpenTelemetry Enhancement Proposal (OTEP).
+
+\paragraph{Positioning.}
+Table~\ref{tab:related} summarizes how existing approaches relate to the three
+properties we care about: a formal freshness model, operational measurement
+across heterogeneous sources, and portable/vendor-neutral emission.
+
+\begin{table}[t]
+\centering
+\caption{Where existing approaches stand. ``Portable emission'' means the
+freshness signal is produced as open, cross-vendor telemetry.}
+\label{tab:related}
+\begin{tabular}{lccc}
+\toprule
+Approach & Formal model & Multi-source & Portable emission \\
+\midrule
+AoI theory~\cite{kaul2012,yates2021survey} & \checkmark & partial & --- \\
+dbt source freshness~\cite{dbtfreshness} & partial & --- (batch only) & --- \\
+Kafka lag tools~\cite{burrow} & partial & --- (streaming only) & --- \\
+Data-observability SaaS~\cite{montecarlo,metaplane} & partial & \checkmark & --- \\
+OTEL DB/messaging semconv~\cite{otelmessaging} & --- & partial & \checkmark \\
+\textbf{This work} & \checkmark & \checkmark & \checkmark \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{The Data Staleness Convention}
+\label{sec:conv}
+
+\subsection{Model}
+Let a \emph{logical source} be any dataset whose freshness we care about: a
+table, a topic, a dbt model, a cache namespace, or an object-store prefix. For
+the freshest record of a source with event time \(t_e\), observed/processed at
+\(t_p\), with current wall-clock time \(t_{now}\):
+\begin{align}
+\text{lag} &= t_p - t_e, \\
+\text{age} &= t_{now} - t_e \;\;(\geq \text{lag}).
+\end{align}
+\texttt{lag} is the delay a record incurred moving through the pipeline; it is
+fixed per record. \texttt{age} keeps increasing until a newer record arrives.
+If a source stops producing, lag of the last record is constant while age rises
+without bound---precisely the condition freshness monitoring exists to detect.
+
+\subsection{Metrics}
+All durations use the UCUM unit \texttt{s}; timestamps are Unix epoch seconds.
+Point-in-time values are reported as asynchronous (observable) gauges; counts of
+events use monotonic counters. Table~\ref{tab:metrics} lists the convention.
+
+\begin{table}[t]
+\centering
+\caption{Proposed \texttt{data.staleness.*} metrics.}
+\label{tab:metrics}
+\footnotesize
+\begin{tabular}{lllp{5.4cm}}
+\toprule
+Metric & Instrument & Unit & Meaning \\
+\midrule
+\texttt{data.staleness.age} & Gauge & \texttt{s} & \(t_{now}-t_e\); primary AoI metric. \\
+\texttt{data.staleness.lag} & Gauge & \texttt{s} & \(t_p-t_e\) of most recent record. \\
+\texttt{data.staleness.last\_update.timestamp} & Gauge & \texttt{s} & Unix time of last update. \\
+\texttt{data.staleness.records.behind} & Gauge & \texttt{\{record\}} & Positional backlog (e.g.\ Kafka lag). \\
+\texttt{data.staleness.sla.threshold} & Gauge & \texttt{s} & Max acceptable age (SLO target). \\
+\texttt{data.staleness.sla.breached} & Gauge & \texttt{1} & \(1\) if age \(>\) threshold else \(0\). \\
+\texttt{data.staleness.sla.breaches} & Counter & \texttt{\{breach\}} & Transitions into breach. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Attributes}
+A small attribute set makes points comparable and sliceable:
+\texttt{data.source.system} (e.g.\ \texttt{postgresql}, \texttt{kafka},
+\texttt{dbt}, \texttt{redis}, \texttt{s3}; reusing \texttt{db.system}/
+\texttt{messaging.system} values where they exist),
+\texttt{data.source.name} (table/topic/model/prefix),
+\texttt{data.source.namespace} (schema/consumer group/bucket),
+\texttt{data.staleness.method} (how the value was derived; see below),
+\texttt{data.staleness.partition}, and \texttt{data.pipeline.stage}
+(\texttt{ingest}/\texttt{transform}/\texttt{serve}).
+
+The \texttt{method} attribute records the measurement recipe and makes
+heterogeneous sources self-describing: \texttt{max\_timestamp} (SQL
+\texttt{MAX(updated\_at)}), \texttt{watermark}, \texttt{consumer\_lag}
+(streaming), \texttt{run\_completion} (batch jobs), \texttt{object\_mtime}
+(object storage), \texttt{ttl\_age} (caches), and \texttt{heartbeat}.
+
+\subsection{Per-source mapping}
+The convention is useful only if each source type has an unambiguous recipe.
+SQL/warehouse sources set \(age = t_{now} - \texttt{MAX}(\textit{ts column})\).
+Streaming sources use the event timestamp of the last consumed record for age
+and lag, and offset lag for \texttt{records.behind}, reported per partition.
+Batch/dbt/Airflow sources set \(age = t_{now} - \textit{last successful run
+end}\). Caches and object stores use last write / last-modified time. These
+mirror what existing tools already compute internally; the convention's value is
+that they now emit \emph{the same metric}. Because the model rests only on a
+source event time, it extends to further families with no new metrics---NoSQL
+and graph stores (e.g.\ Cassandra \texttt{WRITETIME()}), time-series databases,
+lakehouse table formats (Iceberg/Delta/Hudi snapshot commit time), and external
+feeds---which become new \texttt{data.source.system} / \texttt{method} values
+rather than new instruments.
+
+\paragraph{Differential (source-relative) freshness.}
+Some systems' freshness is best expressed against an \emph{upstream} rather than
+against \(t_{now}\): a search or vector index that trails its source corpus, or
+a replica/CDC target that trails its primary. We capture this with the existing
+\texttt{lag} metric, setting the record's event time to the upstream
+write/commit time and naming the upstream in a \texttt{data.staleness.relative\_to}
+attribute (methods \texttt{index\_lag}, \texttt{replication\_lag}). Using source
+time on both sides makes the measurement robust to clock skew between the two
+systems. Absolute (\texttt{age} vs \(t_{now}\)) and differential
+(\texttt{lag} vs upstream) freshness are complementary and may be emitted
+together; index staleness in retrieval-augmented generation pipelines is a
+prominent case where the index can be behind its corpus while also being old in
+absolute terms.
+
+\section{System Design}
+\label{sec:design}
+The reference implementation has two cooperating halves
+(described below): a client-side SDK that knows how to
+\emph{measure} each source, and a Collector-side processor that can
+\emph{derive and evaluate} freshness centrally.
+
+\paragraph{Architecture (textual).}
+\textit{Producers} expose freshness via \emph{probes}. A probe reports the event
+time of the freshest record for one logical source. The \texttt{StalenessMonitor}
+registers the standardized observable gauges once and, on each collection,
+pulls readings from all probes, computes age, and emits observations. Telemetry
+flows over OTLP to an OpenTelemetry Collector, where the \texttt{datastaleness}
+processor can (a) derive \texttt{data.staleness.age} for producers that emit
+only \texttt{last\_update.timestamp}, and (b) attach
+\texttt{data.staleness.sla.threshold}/\texttt{breached} according to operator
+policy. Any OTEL-compatible backend (Prometheus, OTLP store, vendor) then stores
+and queries the result.
+
+\paragraph{Why two halves.}
+Some producers can compute age themselves (a service that knows its event
+times); others are best instrumented with the bare minimum---``here is the
+timestamp of my newest row''---and should not embed clock logic or SLA policy.
+Centralizing derivation and SLA evaluation in the Collector keeps thresholds in
+one operational place and lets the same age computation apply uniformly, which
+also avoids clock-skew logic sprawling across services.
+
+\paragraph{Design principles.}
+(1) \emph{Minimum producer burden}: a probe is a plain callable returning a
+timestamp. (2) \emph{Fault isolation}: a failing probe must never break
+collection of the others. (3) \emph{No new transport}: everything rides
+standard OTEL metrics. (4) \emph{Policy where it belongs}: SLAs are operator
+configuration in the Collector, not hard-coded in applications.
+
+\section{Implementation}
+\label{sec:impl}
+
+\subsection{Python SDK}
+\texttt{otel-staleness} is built on \texttt{opentelemetry-api/sdk}. The core is
+a \texttt{FreshnessReading} dataclass and a \texttt{StalenessMonitor} that
+registers the convention's instruments via observable-gauge callbacks. Probes
+ship for the four core families (SQL/warehouse, streaming, batch, cache/object
+store) plus two \emph{differential} probes---\texttt{IndexFreshnessProbe} and
+\texttt{ReplicationFreshnessProbe}---that report how far a search/vector index or
+a replica trails its upstream via \texttt{lag} and \texttt{relative\_to}:
+
+\begin{lstlisting}[language=Python]
+from otel_staleness import StalenessMonitor, conventions as sc
+from otel_staleness.probes import SQLFreshnessProbe
+
+monitor = StalenessMonitor()
+monitor.add_probe(SQLFreshnessProbe(
+    fetch_max_epoch=lambda: latest_updated_at(),  # Unix s or datetime
+    source_name="orders", system=sc.System.POSTGRESQL,
+    namespace="public", sla_threshold_seconds=300))
+monitor.start()
+\end{lstlisting}
+
+Every probe accepts a plain callable, so probes are unit-testable without a live
+backend; \texttt{SQLFreshnessProbe} additionally offers a \texttt{from\_sqlalchemy}
+constructor. The monitor guards each probe call so a raised exception is
+swallowed and the remaining probes still report---design principle (2).
+
+\subsection{Collector processor}
+\texttt{datastaleness} is a Go metrics processor (Collector API
+\texttt{v0.110.0}, pdata \texttt{v1.16.0}). On each batch it: scans for existing
+\texttt{age} points; optionally derives \texttt{age} from
+\texttt{last\_update.timestamp} as \(\max(0, t_{now}-ts)\); and, for each age
+point, looks up the first matching SLA rule (selectors on
+\texttt{data.source.system}/\texttt{name}, with a default threshold) to emit
+\texttt{threshold} and \texttt{breached} points. Configuration:
+
+\begin{lstlisting}
+processors:
+  datastaleness:
+    compute_age_from_last_update: true
+    evaluate_sla: true
+    default_threshold: 5m
+    slas:
+      - source_system: kafka
+        threshold: 30s
+      - source_name: orders
+        threshold: 1m
+\end{lstlisting}
+
+\section{Evaluation}
+\label{sec:eval}
+We evaluate (i) functional correctness and (ii) runtime overhead. Experiments
+ran in a containerized Linux environment (Python 3.10, Go 1.25, 2 vCPU).
+
+\subsection{Correctness}
+Both components ship with unit tests asserting the convention's semantics:
+age derived from last-update time; explicit age preferred when given; age
+clamped to be non-negative under clock skew; SLA breach edges; per-partition
+Kafka lag; method/attribute tagging; and probe fault isolation. The Python
+suite (17 tests) and Go suite (7 tests) pass. Representative invariants checked:
+\(age = t_{now}-t_e\); \(age \geq 0\); and \(\texttt{breached}=\mathbb{1}[age >
+\textit{threshold}]\).
+
+\subsection{Overhead: SDK}
+We measured the cost of one collection cycle (callback execution plus in-memory
+export) as a function of the number of monitored sources, averaged over 20
+iterations. Table~\ref{tab:sdkbench} shows the SDK adds tens of microseconds per
+source. Even at \(10{,}000\) sources a full collection completes in
+\(\sim\!385\,\text{ms}\); at a typical 15--60\,s metric export interval this is
+negligible. Per-source cost is dominated by attribute-set construction and
+observation allocation, not by the freshness arithmetic.
+
+\begin{table}[t]
+\centering
+\caption{Python SDK: collection + in-memory export cost.}
+\label{tab:sdkbench}
+\begin{tabular}{rrr}
+\toprule
+Sources & Cycle time (ms) & Per source (\(\mu s\)) \\
+\midrule
+100 & 2.16 & 21.7 \\
+1{,}000 & 25.7 & 25.7 \\
+10{,}000 & 385.3 & 38.5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Overhead: Collector processor}
+We benchmarked \texttt{processMetrics} on a batch of \(1{,}000\)
+\texttt{last\_update.timestamp} points with both age derivation and SLA
+evaluation enabled (Go \texttt{testing} benchmark). It runs in
+\(\sim\!0.93\,\text{ms}\) per batch (\(\approx 0.93\,\mu s\) per point) with
+\(\sim\!1.5\,\text{MB}\) allocated per batch. Throughput therefore exceeds one
+million points per second per core, far above the point rates produced by
+freshness telemetry, which is emitted per source per export interval rather than
+per request.
+
+\subsection{Discussion of results}
+The measured overheads confirm the design intent: freshness is a low-cardinality,
+low-frequency signal (one set of points per source per export), so even naive
+implementations are comfortably cheap. The interesting cost in practice is
+cardinality---number of distinct \texttt{(system, name, partition)} tuples---
+which operators already manage for other metrics and which the attribute set is
+deliberately kept small to bound.
+
+\section{Limitations and Future Work}
+\label{sec:limits}
+Our evaluation establishes correctness and overhead, not end-to-end detection
+quality on production workloads; a natural next step is a field study comparing
+breach-detection latency against an existing data-observability tool on the same
+pipelines. Clock skew between producer and Collector affects derived age; we
+clamp to non-negative but do not yet correct skew (e.g.\ via NTP offset
+attributes). The convention intentionally omits richer freshness variants from
+AoI theory (Peak AoI, Age of Incorrect Information); these could be added as
+optional metrics. Finally, the names here are a Development-stage proposal: the
+intended path to adoption is an OTEP and community review, during which names may
+change. Additional first-party probes (BigQuery, Snowflake information-schema,
+Kinesis, GCS) and a Collector \emph{receiver} that actively polls sources are
+straightforward extensions.
+
+\section{Conclusion}
+Freshness is a known and well-studied quantity that, paradoxically, has no
+standard way to be \emph{emitted}. We proposed a compact OpenTelemetry semantic
+convention for data staleness that unifies AoI theory with the fragmented
+practice of data observability, and we released a reference implementation---a
+Python SDK and a Collector processor---that is correct and cheap enough to run
+everywhere. By making data age a portable, queryable telemetry signal alongside
+latency and errors, we hope to let teams reason about ``how old is my data''
+with the same rigor they already apply to ``how fast'' and ``how broken.''
+
+\section*{Artifact Availability}
+The semantic-convention specification, Python SDK (\texttt{otel-staleness}), Go
+Collector processor (\texttt{datastaleness}), demo deployment, and benchmarks
+are released as open source under Apache-2.0.
+
+\begin{thebibliography}{99}
+\footnotesize
+\bibitem{kaul2012} S.~Kaul, R.~Yates, and M.~Gruteser. ``Real-time status: How
+often should one update?'' In \emph{IEEE INFOCOM}, 2012.
+\bibitem{yates2021survey} R.~D.~Yates et al. ``Age of Information: An
+Introduction and Survey.'' \emph{IEEE J. Sel. Areas Commun.}, 2021.
+arXiv:2007.08564.
+\bibitem{peralta2006} V.~Peralta. ``Data Freshness and Data Accuracy: A State
+of the Art.'' Technical Report, Universidad de la Rep\'ublica, 2006.
+\bibitem{montecarlo} Monte Carlo Data. ``Data Freshness Explained.''
+\url{https://www.montecarlodata.com/blog-data-freshness-explained/}.
+\bibitem{metaplane} Metaplane. ``What is data freshness? Definition, examples,
+and best practices.'' \url{https://www.metaplane.dev/blog/data-freshness-definition-examples}.
+\bibitem{sifflet} Sifflet. ``What Is Data Freshness in Data Observability?''
+\url{https://www.siffletdata.com/blog/data-freshness}.
+\bibitem{dbtfreshness} dbt Labs. ``Source freshness.'' dbt documentation.
+\url{https://docs.getdbt.com/docs/build/sources}.
+\bibitem{burrow} LinkedIn. ``Burrow: Kafka Consumer Lag Checking.''
+\url{https://github.com/linkedin/Burrow}.
+\bibitem{otelsemconv} OpenTelemetry. ``Semantic Conventions.''
+\url{https://opentelemetry.io/docs/concepts/semantic-conventions/}.
+\bibitem{otelmessaging} OpenTelemetry. ``Semantic conventions for messaging
+metrics.'' \url{https://opentelemetry.io/docs/specs/semconv/messaging/messaging-metrics/}.
+\bibitem{otelroadmap} OpenTelemetry. ``Semantic Conventions 2026 Roadmap.''
+GitHub issue, open-telemetry/semantic-conventions \#3330.
+\end{thebibliography}
+
+\end{document}

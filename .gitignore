@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.venv/
+.pytest_cache/
+
+# Go / OpenTelemetry Collector Builder output
+_build/
+/collector/**/bin/
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+paper/*.pdf.tmp
+
+# Local env / secrets (never commit real credentials)
+.env
+*.pem
+
+# OS
+.DS_Store

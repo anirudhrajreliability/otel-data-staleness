@@ -1,0 +1,11 @@
+type: datastaleness
+
+status:
+  class: receiver
+  stability:
+    development: [metrics]
+  distributions: []
+
+# Actively scrapes configured data sources (static/file/http/sql) on a schedule
+# and emits data.staleness.* metrics with zero application code, per the
+# data-staleness semantic conventions (spec/semantic-conventions.md).

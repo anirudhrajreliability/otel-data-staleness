@@ -1,0 +1,11 @@
+type: datastaleness
+
+status:
+  class: processor
+  stability:
+    development: [metrics]
+  distributions: []
+
+# Derives data.staleness.age from data.staleness.last_update.timestamp and
+# evaluates freshness SLAs, emitting data.staleness.sla.breached, per the
+# data-staleness semantic conventions (spec/semantic-conventions.md).

@@ -1,0 +1,44 @@
+{
+  "title": "Data Staleness",
+  "uid": "data-staleness",
+  "schemaVersion": 39,
+  "version": 1,
+  "time": { "from": "now-15m", "to": "now" },
+  "refresh": "5s",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Sources breaching SLA",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [
+        { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } } },
+      "targets": [ { "expr": "sum(data_staleness_sla_breached)", "refId": "A" } ]
+    },
+    {
+      "type": "stat",
+      "title": "Max staleness (s)",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [ { "expr": "max(data_staleness_age)", "refId": "A" } ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Staleness age by source",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [ { "expr": "data_staleness_age", "legendFormat": "{{data_source_system}}/{{data_source_name}}", "refId": "A" } ]
+    },
+    {
+      "type": "table",
+      "title": "Current freshness",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 6 },
+      "targets": [ { "expr": "data_staleness_age", "format": "table", "instant": true, "refId": "A" } ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Probe errors (rate/10m)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "targets": [ { "expr": "increase(data_staleness_probe_errors[10m])", "legendFormat": "{{data_source_name}} ({{error_type}})", "refId": "A" } ]
+    }
+  ]
+}

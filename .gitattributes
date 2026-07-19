@@ -1,0 +1,45 @@
+# Normalize line endings. The repository stores text as LF, and checkouts use
+# LF everywhere (including on Windows) so the same files run on Linux/EC2.
+* text=auto eol=lf
+
+# Shell scripts MUST be LF — a CRLF shebang breaks with "bad interpreter" on Linux.
+*.sh   text eol=lf
+*.bash text eol=lf
+
+# Source & config -> LF
+*.go    text eol=lf
+*.py    text eol=lf
+*.pyi   text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+*.json  text eol=lf
+*.toml  text eol=lf
+*.cfg   text eol=lf
+*.ini   text eol=lf
+*.md    text eol=lf
+*.tex   text eol=lf
+*.sql   text eol=lf
+*.txt   text eol=lf
+Dockerfile  text eol=lf
+Makefile    text eol=lf
+go.mod  text eol=lf
+go.sum  text eol=lf
+
+# Binary files — never normalize or diff as text.
+*.pdf   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pem   binary
+*.zip   binary
+
+# GitHub Linguist: keep docs/paper from skewing the repo's language stats,
+# and mark generated/data files so they aren't counted as source.
+paper/**                 linguist-documentation
+docs/**                  linguist-documentation
+otep/**                  linguist-documentation
+*.md                     linguist-documentation
+conformance/vectors.json linguist-generated
+model/**                 linguist-generated

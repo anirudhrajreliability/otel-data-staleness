@@ -1,0 +1,156 @@
+# OpenTelemetry Weaver registry model for the data-staleness semantic
+# conventions. This is the machine-readable form of spec/semantic-conventions.md,
+# suitable for `weaver registry check` and multi-language constant code-gen.
+groups:
+  # ---- Attributes ---------------------------------------------------------
+  - id: registry.data_staleness
+    type: attribute_group
+    display_name: Data Staleness Attributes
+    brief: Attributes that identify a data source for freshness/staleness telemetry.
+    attributes:
+      - id: data.source.system
+        type:
+          allow_custom_values: true
+          members:
+            - { id: postgresql, value: "postgresql", brief: "PostgreSQL" }
+            - { id: kafka, value: "kafka", brief: "Apache Kafka" }
+            - { id: dbt, value: "dbt", brief: "dbt" }
+            - { id: redis, value: "redis", brief: "Redis" }
+            - { id: s3, value: "s3", brief: "Amazon S3" }
+            - { id: pinecone, value: "pinecone", brief: "Pinecone vector DB" }
+        stability: development
+        requirement_level: required
+        brief: The data system the source belongs to.
+        examples: ["postgresql", "kafka", "dbt"]
+      - id: data.source.name
+        type: string
+        stability: development
+        requirement_level: required
+        brief: Logical dataset name (table, topic, model, prefix, cache namespace).
+        examples: ["orders", "events.clickstream", "mart.daily_revenue"]
+      - id: data.source.namespace
+        type: string
+        stability: development
+        requirement_level: recommended
+        brief: Schema, database, consumer group, or bucket.
+        examples: ["public", "analytics", "consumer-group-a"]
+      - id: data.staleness.method
+        type:
+          allow_custom_values: true
+          members:
+            - { id: max_timestamp, value: "max_timestamp", brief: "now - MAX(ts) from a column" }
+            - { id: watermark, value: "watermark", brief: "explicit stream watermark" }
+            - { id: consumer_lag, value: "consumer_lag", brief: "broker offset / record time" }
+            - { id: run_completion, value: "run_completion", brief: "last successful job end" }
+            - { id: object_mtime, value: "object_mtime", brief: "object last-modified" }
+            - { id: ttl_age, value: "ttl_age", brief: "cache key write time" }
+            - { id: heartbeat, value: "heartbeat", brief: "last heartbeat" }
+            - { id: writetime, value: "writetime", brief: "per-cell write timestamp" }
+            - { id: snapshot, value: "snapshot", brief: "lakehouse snapshot commit" }
+            - { id: replication_lag, value: "replication_lag", brief: "target vs source (differential)" }
+            - { id: index_lag, value: "index_lag", brief: "index vs source corpus (differential)" }
+            - { id: version_drift, value: "version_drift", brief: "content describes an older release than current" }
+            - { id: end_to_end, value: "end_to_end", brief: "age propagated across pipeline hops via baggage" }
+        stability: development
+        requirement_level: recommended
+        brief: How the staleness value was derived.
+      - id: data.staleness.partition
+        type: string
+        stability: development
+        requirement_level: opt_in
+        brief: Partition or shard identity for partitioned sources.
+        examples: ["7", "shard-0001"]
+      - id: data.pipeline.stage
+        type:
+          allow_custom_values: true
+          members:
+            - { id: ingest, value: "ingest", brief: "ingestion" }
+            - { id: transform, value: "transform", brief: "transformation" }
+            - { id: serve, value: "serve", brief: "serving" }
+        stability: development
+        requirement_level: opt_in
+        brief: Pipeline position where the measurement was taken.
+      - id: data.staleness.relative_to
+        type: string
+        stability: development
+        requirement_level: opt_in
+        brief: Upstream the measurement is compared against, for differential freshness.
+        examples: ["public.orders", "source-region:us-east-1"]
+      - id: data.staleness.version.documented
+        type: string
+        stability: development
+        requirement_level: opt_in
+        brief: Version the RAG/documentation content describes.
+        examples: ["1.28.0"]
+      - id: data.staleness.version.current
+        type: string
+        stability: development
+        requirement_level: opt_in
+        brief: Current release from the registry oracle.
+        examples: ["1.31.0"]
+
+  # ---- Metrics ------------------------------------------------------------
+  - id: metric.data.staleness.age
+    type: metric
+    metric_name: data.staleness.age
+    stability: development
+    brief: Current data staleness; now - event time of the freshest record (AoI).
+    instrument: gauge
+    unit: "s"
+    extends: registry.data_staleness
+  - id: metric.data.staleness.lag
+    type: metric
+    metric_name: data.staleness.lag
+    stability: development
+    brief: Processing lag of the most recently processed record.
+    instrument: gauge
+    unit: "s"
+    extends: registry.data_staleness
+  - id: metric.data.staleness.last_update.timestamp
+    type: metric
+    metric_name: data.staleness.last_update.timestamp
+    stability: development
+    brief: Unix timestamp of the most recent successful update.
+    instrument: gauge
+    unit: "s"
+    extends: registry.data_staleness
+  - id: metric.data.staleness.records.behind
+    type: metric
+    metric_name: data.staleness.records.behind
+    stability: development
+    brief: Positional backlog between produced and consumed positions.
+    instrument: gauge
+    unit: "{record}"
+    extends: registry.data_staleness
+  - id: metric.data.staleness.sla.threshold
+    type: metric
+    metric_name: data.staleness.sla.threshold
+    stability: development
+    brief: Configured maximum acceptable age (freshness SLA).
+    instrument: gauge
+    unit: "s"
+    extends: registry.data_staleness
+  - id: metric.data.staleness.sla.breached
+    type: metric
+    metric_name: data.staleness.sla.breached
+    stability: development
+    brief: 1 if age exceeds the SLA threshold, else 0.
+    instrument: gauge
+    unit: "1"
+    extends: registry.data_staleness
+  - id: metric.data.staleness.sla.breaches
+    type: metric
+    metric_name: data.staleness.sla.breaches
+    stability: development
+    brief: Cumulative count of transitions into a breached state.
+    instrument: counter
+    unit: "{breach}"
+    extends: registry.data_staleness
+  - id: metric.data.staleness.probe.errors
+    type: metric
+    metric_name: data.staleness.probe.errors
+    stability: development
+    brief: Count of failed freshness measurement attempts.
+    instrument: counter
+    unit: "{error}"
+    extends: registry.data_staleness

@@ -1,0 +1,79 @@
+# Full-stack data-staleness demo with REAL backends.
+#   custom Collector (receiver, zero-code)  -->  Prometheus  -->  Grafana
+#   scraping real Postgres + Kafka + files, with generators that create staleness.
+#
+# Fresh sources stay ~0s; "stale" sources climb and breach their 60s SLA, so the
+# dashboard and alerts light up visibly. Run: docker compose up -d --build
+services:
+  otel-collector:
+    build:
+      context: ../..                     # repo root (so the OCB build sees collector/)
+      dockerfile: collector/Dockerfile
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./collector-config.yaml:/etc/otelcol/config.yaml:ro
+      - demodata:/data
+    ports: ["8889:8889", "4318:4318"]
+    depends_on: [postgres, kafka]
+
+  postgres:
+    image: postgres:16
+    environment: { POSTGRES_PASSWORD: demopw }
+    volumes:
+      - ./seed.sql:/docker-entrypoint-initdb.d/seed.sql:ro
+    ports: ["5432:5432"]
+
+  freshener:
+    image: postgres:16                   # has psql; keeps demo.fresh + fresh.txt updated
+    command: ["bash", "/freshener.sh"]
+    volumes:
+      - ./freshener.sh:/freshener.sh:ro
+      - demodata:/data
+    depends_on: [postgres]
+
+  kafka:
+    image: apache/kafka:3.8.0
+    ports: ["9092:9092"]
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+
+  kafka-burst:
+    image: apache/kafka:3.8.0            # produces a burst then exits (topic goes stale)
+    command: ["bash", "/kafka-burst.sh"]
+    volumes:
+      - ./kafka-burst.sh:/kafka-burst.sh:ro
+    depends_on: [kafka]
+    restart: "no"
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../prometheus-alerts.yml:/etc/prometheus/alerts.yml:ro
+    ports: ["9090:9090"]
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    volumes:
+      - ../grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../grafana/dashboard.json:/var/lib/grafana/dashboards/dashboard.json:ro
+    ports: ["3000:3000"]
+    depends_on: [prometheus]
+
+volumes:
+  demodata:

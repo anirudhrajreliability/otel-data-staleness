@@ -1,0 +1,6 @@
+apiVersion: v2
+name: datastaleness-collector
+description: OpenTelemetry Collector with the data-staleness receiver and processor
+type: application
+version: 0.1.0
+appVersion: "0.4.0"

@@ -1,0 +1,18 @@
+groups:
+  - name: data-staleness
+    rules:
+      - alert: DataStalenessSLABreached
+        expr: data_staleness_sla_breached == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Data source {{ $labels.data_source_name }} is stale"
+          description: "{{ $labels.data_source_system }}/{{ $labels.data_source_name }} has exceeded its freshness SLA."
+      - alert: DataStalenessProbeErrors
+        expr: increase(data_staleness_probe_errors[10m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "Freshness probe failing for {{ $labels.data_source_name }}"
+          description: "The freshness measurement itself is failing (error.type={{ $labels.error_type }})."

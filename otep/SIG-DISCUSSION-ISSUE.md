@@ -4,7 +4,7 @@ The discussion proposal for a `data.staleness.*` semantic convention, intended
 for the OpenTelemetry Semantic Conventions SIG. It is kept in the repo as a
 record; the live discussion is tracked in the SIG issue linked below once opened.
 
-- Discussion issue: _(add link once posted)_
+- Discussion issue: https://github.com/open-telemetry/semantic-conventions/issues/3909
 - Full design: [`0000-data-staleness.md`](0000-data-staleness.md) · Path to adoption: [`README.md`](README.md)
 
 ---

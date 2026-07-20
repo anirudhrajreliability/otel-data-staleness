@@ -85,7 +85,7 @@ expected cadence (e.g. exponential buckets around the schedule interval).
 | `data.staleness.relative_to` | string | Opt | `public.orders`, `source-region:us-east-1` | The upstream the measurement is compared against, for *differential* freshness (§4.1). Absent for absolute (vs `now`) measurements. |
 | `data.staleness.partition`| string | Opt | `7`, `shard-0001` | Partition/shard identity for partitioned sources. |
 | `data.pipeline.stage`     | string | Opt | `ingest`, `transform`, `serve` | Pipeline position the measurement was taken at. |
-| `error.type`              | string | Opt | `timeout`, `ConnectionError`, `query_failed` | On `data.staleness.probe.errors` only. Reuses the OTEL general `error.type` convention. |
+| `error.type`              | string | Opt | `timeout`, `query_failed`, `no_value` | On `data.staleness.probe.errors` only. Reuses the OTEL general `error.type` convention; producers SHOULD use low-cardinality snake_case values so failures are comparable across producers/languages. |
 | `data.staleness.version.documented` | string | Opt | `1.28.0` | Version the (RAG/doc) content describes. |
 | `data.staleness.version.current` | string | Opt | `1.31.0` | Current release from the registry oracle. |
 

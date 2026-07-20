@@ -99,6 +99,18 @@ def _as_probe_fn(probe) -> ProbeFn:
     raise TypeError("probe must be a StalenessProbe or a callable returning readings")
 
 
+def _reading_is_empty(r: FreshnessReading) -> bool:
+    """True if a reading carries no measurable freshness signal at all (no age,
+    no last-update, no records-behind, no lag) — i.e. the source could not be
+    measured. Such readings are reported as probe.errors, never emitted as data."""
+    return (
+        r.age_seconds is None
+        and r.last_update_epoch is None
+        and r.records_behind is None
+        and r.lag_seconds is None
+    )
+
+
 class StalenessMonitor:
     """Registers the data-staleness instruments and drives them from probes.
 
@@ -138,6 +150,12 @@ class StalenessMonitor:
         self._probes.append((fn, name))
         return self
 
+    def _record_probe_error(self, error_type: str, attrs: Dict[str, str]) -> None:
+        """Emit one data.staleness.probe.errors point (low-cardinality snake_case
+        error.type), so a failed/indeterminable measurement is VISIBLE."""
+        if self._probe_errors_counter is not None:
+            self._probe_errors_counter.add(1, {**attrs, sc.ATTR_ERROR_TYPE: error_type})
+
     def collect_readings(self) -> List[FreshnessReading]:
         # Serve a fresh snapshot within the export cycle to avoid re-running
         # probes (and double-counting errors) across the several callbacks.
@@ -148,15 +166,25 @@ class StalenessMonitor:
         for fn, name in self._probes:
             try:
                 result = fn()
-            except Exception as exc:
+            except TimeoutError:
                 # a failing probe must not break the others, but the failure
                 # MUST be visible (never silently swallowed).
-                if self._probe_errors_counter is not None:
-                    self._probe_errors_counter.add(
-                        1, {sc.ATTR_ERROR_TYPE: type(exc).__name__, "probe": name})
+                self._record_probe_error("timeout", {sc.ATTR_SOURCE_NAME: name})
                 continue
-            if result:
-                readings.extend(result)
+            except Exception:
+                self._record_probe_error("probe_error", {sc.ATTR_SOURCE_NAME: name})
+                continue
+            for r in (result or []):
+                if _reading_is_empty(r):
+                    # An indeterminable measurement (empty table, NULL MAX(),
+                    # missing key, no records) MUST surface as probe.errors, not
+                    # be dropped — otherwise a broken source is invisible.
+                    self._record_probe_error("no_value", {
+                        sc.ATTR_SOURCE_SYSTEM: r.source_system,
+                        sc.ATTR_SOURCE_NAME: r.source_name,
+                    })
+                else:
+                    readings.append(r)
         self._cache = readings
         self._cache_at = self._now_fn()  # measure window from completion, not start
         return readings

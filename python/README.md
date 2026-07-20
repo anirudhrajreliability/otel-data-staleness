@@ -51,7 +51,7 @@ python examples/quickstart.py
 | Probe | Source | Method emitted |
 |-------|--------|----------------|
 | `SQLFreshnessProbe` | Postgres/MySQL/Snowflake/Redshift/BigQuery | `max_timestamp` |
-| `KafkaFreshnessProbe` | Kafka/Kinesis (per partition) | `consumer_lag` |
+| `KafkaFreshnessProbe` | Kafka (per partition) | `consumer_lag` |
 | `PipelineFreshnessProbe` | dbt/Airflow batch jobs | `run_completion` |
 | `CacheFreshnessProbe` | Redis | `ttl_age` |
 | `ObjectStoreFreshnessProbe` | S3/GCS | `object_mtime` |
@@ -162,7 +162,7 @@ class MyProbe(StalenessProbe):
 ## Tests
 
 ```bash
-python -m pytest -q                 # 52 tests
+python -m pytest -q                 # 54 tests
 PYTHONPATH=src python ../conformance/runner.py   # conformance vectors
 ```
 

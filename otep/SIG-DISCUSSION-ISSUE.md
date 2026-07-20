@@ -67,7 +67,7 @@ a clean cloud instance**. A one-command suite stands up real Postgres + Kafka +
 Redis + LocalStack Kinesis + Confluent Schema Registry and asserts the metrics
 are *numerically correct*, not merely present:
 
-- **52** Python SDK + **41** receiver + **9** processor unit tests, and a
+- **54** Python SDK + **42** receiver + **9** processor unit tests, and a
   language-agnostic **conformance** suite — all green.
 - **11/11 real-workload checks** on a fresh EC2 box:
   - **Accuracy** — inject a row with a known event-time; `data.staleness.last_update.timestamp`

@@ -136,6 +136,9 @@ func scrapeDBMigration(ctx context.Context, cfg SourceConfig, _ time.Time) []rea
 	}
 	defer rows.Close()
 	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return []reading{{cfg: cfg, method: methodVersionDrift, errType: "query_failed"}}
+		}
 		return []reading{{cfg: cfg, method: methodVersionDrift, errType: "no_rows"}}
 	}
 	var raw any

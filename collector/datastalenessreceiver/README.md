@@ -229,7 +229,7 @@ receiver to avoid duplicate `age` series.
 ## Development
 
 ```bash
-go test ./...        # 26 tests; SQL/Kafka/Kinesis logic run against hermetic fakes
+go test ./...        # 42 tests; SQL/Kafka/Kinesis logic run against hermetic fakes
 go vet ./... && gofmt -l .
 ```
 

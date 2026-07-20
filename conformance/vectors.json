@@ -1,6 +1,6 @@
 {
   "description": "Language-agnostic conformance vectors for the data-staleness convention. Given 'now' and a reading's inputs, an implementation MUST emit the 'expected' metric values (seconds; omitted metrics need not be emitted).",
-  "convention_version": "0.3.0",
+  "convention_version": "0.4.0",
   "cases": [
     {
       "name": "age_from_last_update",

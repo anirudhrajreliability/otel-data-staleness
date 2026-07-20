@@ -57,6 +57,17 @@ func TestStaticNoValueIsVisibleError(t *testing.T) {
 	}
 }
 
+func TestStaticExplicitAgePreferredOverLastUpdate(t *testing.T) {
+	// When both are set, explicit age_seconds wins over a derived age — matches
+	// the Python SDK and the explicit_age_preferred conformance vector.
+	cfg := SourceConfig{Type: "static", Name: "x",
+		LastUpdateEpoch: float64(fixedNow) - 999, AgeSeconds: 12.5}
+	r := scrapeStatic(cfg, time.Unix(int64(fixedNow), 0))
+	if !r.ok || !r.hasAge || r.ageSeconds != 12.5 {
+		t.Fatalf("expected explicit age 12.5, got ok=%v hasAge=%v age=%v", r.ok, r.hasAge, r.ageSeconds)
+	}
+}
+
 func TestParseTimeStringRejectsDateEncodedInt(t *testing.T) {
 	// 20240101 must NOT be read as epoch seconds (would be Aug 1970)
 	if _, ok := toEpoch("20240101", true); ok {

@@ -39,7 +39,7 @@ for the per-release changelog.
   receiver that scrapes your sources from YAML alone.
 - **Honest by design**: an empty table, timeout, or unparseable value becomes a
   *visible error* — never a fabricated "0 seconds old."
-- **Standard, not just a library**: a spec, a machine-readable Weaver model, and
+- **A proposed standard, not just a library**: a spec, a machine-readable Weaver model, and
   a language-agnostic conformance suite.
 - **Provable end-to-end**: a one-command demo with real Postgres + Kafka + a
   Grafana dashboard, and a turnkey EC2 test script.
@@ -159,10 +159,10 @@ chaos), see [`docs/INTEGRATION-VALIDATION.md`](docs/INTEGRATION-VALIDATION.md).
 
 | Component | Tests | Notes |
 |-----------|-------|-------|
-| Python SDK | 52 passing | probes for SQL/Kafka/pipeline/cache/index/replica/version + dbt & RAG version-currency |
+| Python SDK | 54 passing | probes for SQL/Kafka/pipeline/cache/index/replica/version + dbt & RAG version-currency |
 | Conformance suite | 6 vectors | language-agnostic spec tests |
 | Go processor | 9 passing + benchmark | derives age, evaluates SLAs |
-| Go receiver | 41 passing | SQL/Kafka/Kinesis/file/HTTP + schema-registry & db-migration version-drift; logic tested against hermetic fakes |
+| Go receiver | 42 passing | SQL/Kafka/Kinesis/file/HTTP + schema-registry & db-migration version-drift; logic tested against hermetic fakes |
 | Custom Collector | builds + validates | OCB build with both components + Postgres/MySQL + Kafka + Kinesis clients linked |
 | Paper | builds | 7-page preprint, `pdflatex paper/data-staleness-otel-preprint.tex` |
 

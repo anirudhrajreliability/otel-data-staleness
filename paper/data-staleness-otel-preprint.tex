@@ -61,10 +61,11 @@ freshness SLAs. Third, we evaluate the
 implementation's correctness and overhead, measuring per-source emission cost
 of \(22\)--\(39\,\mu s\) in the SDK and sub-microsecond per-point processing in
 the Collector. We further validate the implementation end-to-end against real
-backends---PostgreSQL, Kafka, Redis, Kinesis, and a schema registry---on a
-cloud instance, asserting that emitted metrics are numerically correct (age
-equal to a known injected offset, exact consumer lag) and that failures are
-made visible rather than fabricated, not merely that metrics appear. Our aim is not a new freshness metric but the
+backends---PostgreSQL, Kafka, Redis, a schema registry, and an emulated
+Kinesis---on a cloud instance, asserting that emitted metrics are numerically
+correct (age equal to a known injected offset, exact consumer lag) and that
+failures are made visible rather than fabricated, not merely that metrics
+appear. Our aim is not a new freshness metric but the
 \emph{consolidation} of a well-studied one into the dominant observability
 framework, so that freshness becomes as portable and queryable as latency or
 error rate. The artifacts are released as open source under Apache-2.0.
@@ -116,8 +117,10 @@ Concretely, we contribute:
   cache/object-store sources.
   \item \textbf{A reference implementation} (Sections~\ref{sec:design}--\ref{sec:impl}):
   an Apache-2.0 Python SDK (\texttt{otel-staleness}) built on
-  \texttt{opentelemetry-python}, and a Go OpenTelemetry Collector processor
-  (\texttt{datastaleness}) that derives age and evaluates SLAs centrally.
+  \texttt{opentelemetry-python}, a zero-configuration Go OpenTelemetry Collector
+  \emph{receiver} (\texttt{datastalenessreceiver}) that scrapes sources with no
+  application code, and a Go Collector \emph{processor}
+  (\texttt{datastalenessprocessor}) that derives age and evaluates SLAs centrally.
   \item \textbf{An evaluation} (Section~\ref{sec:eval}) of correctness and
   runtime overhead, with reproducible microbenchmarks.
 \end{enumerate}
@@ -280,10 +283,11 @@ absolute terms.
 
 \section{System Design}
 \label{sec:design}
-The reference implementation has two cooperating halves
-(described below): a client-side SDK that knows how to
-\emph{measure} each source, and a Collector-side processor that can
-\emph{derive and evaluate} freshness centrally.
+The reference implementation has three cooperating roles
+(described below): a client-side SDK that \emph{measures} sources from
+application code, a zero-configuration Collector \emph{receiver} that
+\emph{scrapes} sources with no application code, and a Collector \emph{processor}
+that can \emph{derive and evaluate} freshness centrally.
 
 \paragraph{Architecture (textual).}
 \textit{Producers} expose freshness via \emph{probes}. A probe reports the event
@@ -294,13 +298,17 @@ flows over OTLP to an OpenTelemetry Collector, where the \texttt{datastaleness}
 processor can (a) derive \texttt{data.staleness.age} for producers that emit
 only \texttt{last\_update.timestamp}, and (b) attach
 \texttt{data.staleness.sla.threshold}/\texttt{breached} according to operator
-policy. Any OTEL-compatible backend (Prometheus, OTLP store, vendor) then stores
-and queries the result.
+policy. For infrastructure whose code cannot be modified, the
+\texttt{datastalenessreceiver} instead \emph{scrapes} the same signals directly
+and emits the identical metrics with no application code. Any OTEL-compatible
+backend (Prometheus, OTLP store, vendor) then stores and queries the result.
 
-\paragraph{Why two halves.}
+\paragraph{Why separate roles.}
 Some producers can compute age themselves (a service that knows its event
 times); others are best instrumented with the bare minimum---``here is the
-timestamp of my newest row''---and should not embed clock logic or SLA policy.
+timestamp of my newest row''---and should not embed clock logic or SLA policy;
+and some infrastructure cannot be instrumented in application code at all, which
+is what the zero-code receiver is for.
 Centralizing derivation and SLA evaluation in the Collector keeps thresholds in
 one operational place and lets the same age computation apply uniformly, which
 also avoids clock-skew logic sprawling across services.
@@ -339,10 +347,26 @@ monitor.start()
 Every probe accepts a plain callable, so probes are unit-testable without a live
 backend; \texttt{SQLFreshnessProbe} additionally offers a \texttt{from\_sqlalchemy}
 constructor. The monitor guards each probe call so a raised exception is
-swallowed and the remaining probes still report---design principle (2).
+swallowed and the remaining probes still report---design principle (2). An
+empty or indeterminable reading (a probe that returns no timestamp) is likewise
+surfaced as \texttt{data.staleness.probe.errors} rather than dropped, so a broken
+source is never silently invisible.
+
+\subsection{Collector receiver}
+\texttt{datastalenessreceiver} is a zero-configuration Go metrics receiver: it
+\emph{scrapes} freshness on a schedule from YAML alone, with no application code.
+Source types cover SQL (\texttt{MAX(ts)} or a custom watermark/load-audit query),
+Kafka and Amazon Kinesis (newest-record time and consumer-offset lag, per
+partition/shard), files (mtime), HTTP (\texttt{Last-Modified} or an epoch body),
+Confluent Schema Registry and DB-migration version drift, and a static source for
+testing. Every failure or indeterminable measurement (empty table, NULL
+\texttt{MAX()}, timeout, unparseable value, empty partition) is surfaced as
+\texttt{data.staleness.probe.errors} with a specific \texttt{error.type}, never a
+fabricated age. It emits the identical metric vocabulary as the SDK, so the two
+producers are interchangeable at the backend.
 
 \subsection{Collector processor}
-\texttt{datastaleness} is a Go metrics processor (Collector API
+\texttt{datastalenessprocessor} is a Go metrics processor (Collector API
 \texttt{v0.110.0}, pdata \texttt{v1.16.0}). On each batch it: scans for existing
 \texttt{age} points; optionally derives \texttt{age} from
 \texttt{last\_update.timestamp} as \(\max(0, t_{now}-ts)\); and, for each age
@@ -369,13 +393,21 @@ We evaluate (i) functional correctness and (ii) runtime overhead. Experiments
 ran in a containerized Linux environment (Python 3.10, Go 1.25, 2 vCPU).
 
 \subsection{Correctness}
-Both components ship with unit tests asserting the convention's semantics:
+All three components ship with unit tests asserting the convention's semantics:
 age derived from last-update time; explicit age preferred when given; age
 clamped to be non-negative under clock skew; SLA breach edges; per-partition
-Kafka lag; method/attribute tagging; and probe fault isolation. The Python
-suite (17 tests) and Go suite (7 tests) pass. Representative invariants checked:
-\(age = t_{now}-t_e\); \(age \geq 0\); and \(\texttt{breached}=\mathbb{1}[age >
-\textit{threshold}]\).
+Kafka lag; method/attribute tagging; and probe fault isolation (an empty or
+failed measurement surfaces as \texttt{probe.errors}, never a fabricated age).
+The Python SDK (54 tests), the Go receiver (42 tests), and the Go processor
+(9 tests) all pass, alongside a language-agnostic \emph{conformance} suite that
+replays shared vectors so the numbers are not one library's opinion.
+Representative invariants: \(age = t_{now}-t_e\); \(age \geq 0\); and
+\(\texttt{breached}=\mathbb{1}[age > \textit{threshold}]\). Beyond unit tests, an
+integration suite stands up real Postgres, Kafka, Redis, a Schema Registry, and
+an emulated Kinesis (LocalStack) on a cloud instance and asserts the emitted
+metrics are numerically correct---age equal to a known injected offset and exact
+consumer lag---and that stopping a source makes \texttt{probe.errors} visible
+rather than fabricating a value.
 
 \subsection{Overhead: SDK}
 We measured the cost of one collection cycle (callback execution plus in-memory
@@ -421,8 +453,9 @@ deliberately kept small to bound.
 
 \section{Limitations and Future Work}
 \label{sec:limits}
-Our evaluation establishes correctness and overhead, not end-to-end detection
-quality on production workloads; a natural next step is a field study comparing
+Our evaluation establishes correctness and overhead---including numeric
+correctness against real backends---but not breach-detection \emph{quality} on
+production workloads; a natural next step is a field study comparing
 breach-detection latency against an existing data-observability tool on the same
 pipelines. Clock skew between producer and Collector affects derived age; we
 clamp to non-negative but do not yet correct skew (e.g.\ via NTP offset
@@ -430,24 +463,26 @@ attributes). The convention intentionally omits richer freshness variants from
 AoI theory (Peak AoI, Age of Incorrect Information); these could be added as
 optional metrics. Finally, the names here are a Development-stage proposal: the
 intended path to adoption is an OTEP and community review, during which names may
-change. Additional first-party probes (BigQuery, Snowflake information-schema,
-Kinesis, GCS) and a Collector \emph{receiver} that actively polls sources are
-straightforward extensions.
+change. Additional first-party probes and source types (BigQuery and Snowflake
+information-schema freshness, GCS, lakehouse snapshot age) are straightforward
+extensions of the existing SDK and receiver.
 
 \section{Conclusion}
 Freshness is a known and well-studied quantity that, paradoxically, has no
 standard way to be \emph{emitted}. We proposed a compact OpenTelemetry semantic
 convention for data staleness that unifies AoI theory with the fragmented
-practice of data observability, and we released a reference implementation---a
-Python SDK and a Collector processor---that is correct and cheap enough to run
-everywhere. By making data age a portable, queryable telemetry signal alongside
+practice of data observability, and we released a reference implementation---a Python SDK, a zero-configuration
+Collector receiver, and a Collector processor---that is correct and adds
+negligible overhead. By making data age a portable, queryable telemetry signal alongside
 latency and errors, we hope to let teams reason about ``how old is my data''
 with the same rigor they already apply to ``how fast'' and ``how broken.''
 
 \section*{Artifact Availability}
-The semantic-convention specification, Python SDK (\texttt{otel-staleness}), Go
-Collector processor (\texttt{datastaleness}), demo deployment, and benchmarks
-are released as open source under Apache-2.0.
+The semantic-convention specification, a machine-readable Weaver model, a
+language-agnostic conformance suite, the Python SDK (\texttt{otel-staleness}),
+the Go Collector receiver (\texttt{datastalenessreceiver}) and processor
+(\texttt{datastalenessprocessor}), the integration-validation suite, demo
+deployments, and benchmarks are released as open source under Apache-2.0.
 
 \begin{thebibliography}{99}
 \footnotesize

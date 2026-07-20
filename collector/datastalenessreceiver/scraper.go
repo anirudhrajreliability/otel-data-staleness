@@ -67,7 +67,12 @@ func scrapeSource(ctx context.Context, cfg SourceConfig, now time.Time, httpGet 
 
 func resolve(cfg SourceConfig, now time.Time, lastUpdate float64, hasLast bool) reading {
 	r := reading{cfg: cfg, lastUpdateEpoch: -1, ageSeconds: -1}
-	if cfg.AgeSeconds > 0 && !hasLast {
+	// Explicit age_seconds wins over a derived age — matches the Python SDK
+	// (compute_age) and the explicit_age_preferred conformance vector.
+	if cfg.AgeSeconds > 0 {
+		if hasLast {
+			r.lastUpdateEpoch = lastUpdate
+		}
 		r.ageSeconds = cfg.AgeSeconds
 		r.hasAge = true
 		r.ok = true
@@ -123,6 +128,11 @@ func scrapeHTTP(ctx context.Context, cfg SourceConfig, now time.Time, get httpGe
 		return reading{cfg: cfg, errType: "request_failed"}
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		// A 4xx/5xx is a visible failure, not a source to parse for a timestamp
+		// (an error-page body could otherwise be misread as an epoch).
+		return reading{cfg: cfg, errType: fmt.Sprintf("http_%d", resp.StatusCode)}
+	}
 	if lm := resp.Header.Get("Last-Modified"); lm != "" {
 		if t, err := http.ParseTime(lm); err == nil {
 			return resolve(cfg, now, float64(t.Unix()), true)
@@ -212,6 +222,11 @@ func scrapeSQL(ctx context.Context, cfg SourceConfig, now time.Time) reading {
 
 	cols, _ := rows.Columns()
 	if !rows.Next() {
+		// rows.Next() also returns false on an iteration/driver error; surface
+		// that as query_failed rather than mislabeling it an empty result.
+		if err := rows.Err(); err != nil {
+			return reading{cfg: cfg, errType: "query_failed", method: method}
+		}
 		return reading{cfg: cfg, errType: "no_rows", method: method}
 	}
 	var tsRaw any

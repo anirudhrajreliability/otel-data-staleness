@@ -49,9 +49,45 @@ def test_probe_errors_counted_once_per_export():
     clock.tick(60)
     pts = _values(reader, sc.METRIC_PROBE_ERRORS)  # export 2
     assert pts, "expected probe.errors"
-    # cumulative across 2 exports = 2, tagged with error.type
+    # cumulative across 2 exports = 2, tagged with a low-cardinality error.type
     assert pts[0].value == 2
-    assert pts[0].attributes[sc.ATTR_ERROR_TYPE] == "RuntimeError"
+    assert pts[0].attributes[sc.ATTR_ERROR_TYPE] == "probe_error"
+    # identity carried via the declared source.name attribute (not a stray key)
+    assert pts[0].attributes[sc.ATTR_SOURCE_NAME] == "boomer"
+
+
+def test_empty_reading_surfaces_probe_error():
+    # A probe that returns an indeterminable reading (no age / last_update /
+    # records_behind / lag) MUST surface probe.errors, not be silently dropped.
+    clock = Clock(1000.0)
+    reader, mon = _setup(clock)
+    mon.add_probe(lambda: [FreshnessReading(
+        source_system="postgresql", source_name="orders",
+        sla_threshold_seconds=60)])  # NULL MAX() -> no freshness signal
+    mon.start()
+
+    age_pts = _values(reader, sc.METRIC_AGE)  # export 1
+    assert age_pts == [], "an empty reading must NOT emit an age"
+    clock.tick(60)
+    pts = _values(reader, sc.METRIC_PROBE_ERRORS)  # export 2
+    assert pts, "expected probe.errors for the empty reading"
+    assert pts[0].attributes[sc.ATTR_ERROR_TYPE] == "no_value"
+    assert pts[0].attributes[sc.ATTR_SOURCE_NAME] == "orders"
+
+
+def test_timeout_maps_to_snake_case():
+    clock = Clock(1000.0)
+    reader, mon = _setup(clock)
+
+    def slow():
+        raise TimeoutError("deadline exceeded")
+
+    mon.add_probe(slow, name="warehouse")
+    mon.start()
+    _values(reader, sc.METRIC_AGE)
+    clock.tick(60)
+    pts = _values(reader, sc.METRIC_PROBE_ERRORS)
+    assert pts and pts[0].attributes[sc.ATTR_ERROR_TYPE] == "timeout"
 
 
 def test_age_peak_tracks_and_resets():

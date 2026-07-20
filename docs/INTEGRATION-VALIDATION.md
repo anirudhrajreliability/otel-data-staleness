@@ -35,7 +35,8 @@ bash scripts/ec2-integration.sh
 ```
 
 That builds + starts the stack and runs `scripts/integration-suite.sh`, which
-prints a per-check `PASS/FAIL` and a final tally. Exit code `0` = all passed.
+prints a per-check `PASS/FAIL` and a final tally (**11 checks** — the SDK row
+below is two: `sdk_orders` and `sdk_cache`). Exit code `0` = all passed.
 
 ## What each check proves
 

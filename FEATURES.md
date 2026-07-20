@@ -81,7 +81,7 @@ List your sources in YAML; the Collector checks them on a schedule.
 - **Emit what can't be reconstructed, derive the rest** — only ships metrics a
   backend genuinely can't recompute, keeping cost and cardinality low.
 
-## The standardization pieces (what makes it a *standard*)
+## The standardization pieces (what a *standard* needs)
 
 - **Specification** — the agreed metric names, units, attributes, and per-source
   recipes, written to become an OpenTelemetry semantic convention.
@@ -110,7 +110,7 @@ List your sources in YAML; the Collector checks them on a schedule.
 
 ## Quality bar
 
-All of the above is tested: **50** Python tests, **40** Go receiver + **9** Go
+All of the above is tested: **54** Python tests, **42** Go receiver + **9** Go
 processor tests, and **6** conformance cases — all passing (vet + gofmt clean) —
 with the custom Collector building and validating. A dedicated hardening pass
 fixed the known correctness bugs and enforces the honest-measurement rule

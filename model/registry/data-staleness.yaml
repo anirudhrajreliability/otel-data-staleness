@@ -18,6 +18,7 @@ groups:
             - { id: redis, value: "redis", brief: "Redis" }
             - { id: s3, value: "s3", brief: "Amazon S3" }
             - { id: pinecone, value: "pinecone", brief: "Pinecone vector DB" }
+            - { id: docs, value: "docs", brief: "Documentation / RAG content set" }
         stability: development
         requirement_level: required
         brief: The data system the source belongs to.
@@ -150,7 +151,31 @@ groups:
     type: metric
     metric_name: data.staleness.probe.errors
     stability: development
-    brief: Count of failed freshness measurement attempts.
+    brief: Count of failed or indeterminable freshness measurement attempts.
     instrument: counter
     unit: "{error}"
+    extends: registry.data_staleness
+  - id: metric.data.staleness.update.interval
+    type: metric
+    metric_name: data.staleness.update.interval
+    stability: development
+    brief: Distribution of intervals between successive updates (cadence); a backend cannot reconstruct this from age.
+    instrument: histogram
+    unit: "s"
+    extends: registry.data_staleness
+  - id: metric.data.staleness.age.peak
+    type: metric
+    metric_name: data.staleness.age.peak
+    stability: development
+    brief: Peak Age of Information since the last export (max age reached).
+    instrument: gauge
+    unit: "s"
+    extends: registry.data_staleness
+  - id: metric.data.staleness.partition.skew
+    type: metric
+    metric_name: data.staleness.partition.skew
+    stability: development
+    brief: Age spread across partitions (max minus min) to surface stragglers.
+    instrument: gauge
+    unit: "s"
     extends: registry.data_staleness

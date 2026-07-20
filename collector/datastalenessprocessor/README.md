@@ -71,7 +71,7 @@ Add the component to an [OpenTelemetry Collector Builder](https://opentelemetry.
 
 ```yaml
 processors:
-  - gomod: github.com/otel-data-staleness/datastalenessprocessor v0.1.0
+  - gomod: github.com/otel-data-staleness/datastalenessprocessor v0.4.0
 ```
 
 Register `NewFactory()` in your distribution's component list.

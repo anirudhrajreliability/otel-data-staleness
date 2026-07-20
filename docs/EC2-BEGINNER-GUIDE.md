@@ -164,7 +164,7 @@ You may be asked once to confirm a package install — press **Enter/Y** if so.
 
 ### What success looks like
 
-- The test stages print things like `52 passed`, `PASS — 0 mismatch(es)`, and
+- The test stages print things like `54 passed`, `PASS — 0 mismatch(es)`, and
   `ok  github.com/otel-data-staleness/...`.
 - The final smoke test prints, after a minute or two:
 
@@ -187,7 +187,8 @@ dashboard with staleness climbing:
    - Type **Custom TCP**, Port **3000**, Source **My IP**. Add another for port
      **9090**. **Save rules.**
 2. On the Instances page, copy your instance's **Public IPv4 address**.
-3. In your browser go to `http://<that-ip>:3000` → log in `admin` / `admin` →
+3. In your browser go to `http://<that-ip>:3000` → anonymous access is enabled,
+   so you land straight in (log in `admin` / `admin` only if prompted) →
    open the **"Data Staleness"** dashboard. Within a minute the *"Sources
    breaching SLA"* number rises as the stale sources cross their 60-second SLA,
    while the fresh ones stay near zero.
@@ -227,7 +228,7 @@ Conventions SIG values:
 | 1 | **A written spec exists** | `spec/semantic-conventions.md` (v0.4.0) defines every `data.staleness.*` metric + attribute. |
 | 2 | **A machine-readable model** | `model/registry/data-staleness.yaml` is the OTEL **Weaver** model — the format the SIG models conventions in. |
 | 3 | **Language-agnostic conformance** | `conformance/runner.py` replays vectors and prints `PASS — 0 mismatch(es)`; proves the numbers aren't one library's opinion. |
-| 4 | **A working reference implementation** | Python SDK (**52 tests**) + Go Collector receiver (**41**) + processor (**9**) all build, vet, and test green. |
+| 4 | **A working reference implementation** | Python SDK (**54 tests**) + Go Collector receiver (**42**) + processor (**9**) all build, vet, and test green. |
 | 5 | **Zero-code adoption path** | The custom Collector builds via OCB and `validate`s the demo config — infra teams need no code changes. |
 | 6 | **It actually emits the metric on real systems** | The live stack scrapes **real** Postgres + Kafka + files; the smoke test asserts `data.staleness.age` is flowing. |
 | 7 | **It's honest under failure** | Stale sources cross their 60s SLA and `data.staleness.sla.breached == 1`; empty/timeouts surface as `probe.errors`, never a fabricated `0`. |

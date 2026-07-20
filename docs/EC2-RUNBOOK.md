@@ -34,7 +34,7 @@ below are the manual, step-by-step version.
 
 | Aspect | Step | Success signal |
 |--------|------|----------------|
-| Python SDK | 4 | `21 passed` |
+| Python SDK | 4 | `54 passed` |
 | Conformance suite | 4 | `PASS — 0 mismatch(es)` |
 | Go processor | 5 | `ok ...datastalenessprocessor` |
 | Go receiver | 5 | `ok ...datastalenessreceiver` |
@@ -127,7 +127,7 @@ cd ~/otel-data-staleness
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e "python/.[dev,otlp]"
 
-cd python && python -m pytest -q && cd ..             # expect: 21 passed
+cd python && python -m pytest -q && cd ..             # expect: 54 passed
 PYTHONPATH=python/src python conformance/runner.py    # expect: PASS — 0 mismatch(es)
 ```
 
@@ -363,8 +363,10 @@ YAML
 # until you put another record. Stop: kill %1 ; aws kinesis delete-stream ...
 ```
 
-No AWS handy? `localstack` provides a Kinesis endpoint; point the SDK at it via
-`AWS_ENDPOINT_URL` and dummy creds for a local smoke test.
+No AWS handy? `localstack` provides a Kinesis endpoint; point the **receiver** at
+it by adding `endpoint: "http://localstack:4566"` to the `kinesis` source (and
+dummy AWS creds) for a local smoke test. Kinesis is a receiver-only source — the
+Python SDK does not scrape Kinesis.
 
 ## 10. Helm chart (optional, needs a cluster)
 

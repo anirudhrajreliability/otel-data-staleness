@@ -58,7 +58,11 @@ standardized metrics, and an OpenTelemetry Collector processor that centrally
 derives age and evaluates freshness SLAs. Third, we evaluate the
 implementation's correctness and overhead, measuring per-source emission cost
 of \(22\)--\(39\,\mu s\) in the SDK and sub-microsecond per-point processing in
-the Collector. Our aim is not a new freshness metric but the
+the Collector. We further validate the implementation end-to-end against real
+backends---PostgreSQL, Kafka, Redis, Kinesis, and a schema registry---on a
+cloud instance, asserting that emitted metrics are numerically correct (age
+equal to a known injected offset, exact consumer lag) and that failures are
+made visible rather than fabricated, not merely that metrics appear. Our aim is not a new freshness metric but the
 \emph{consolidation} of a well-studied one into the dominant observability
 framework, so that freshness becomes as portable and queryable as latency or
 error rate. The artifacts are released as open source under Apache-2.0.

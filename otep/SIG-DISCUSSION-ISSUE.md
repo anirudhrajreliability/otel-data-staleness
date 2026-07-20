@@ -1,18 +1,15 @@
-# [Ready to post] Semantic Conventions discussion issue
+# Proposal — Semantic Conventions SIG: data staleness / freshness
 
-Post this as a **new issue** in `open-telemetry/semantic-conventions`. Keep it
-short — the goal is to gauge appetite and find **co-owners** for a new area, not
-to merge a spec on day one. A new `data.*` area needs an active owning group per
-`AREAS.md`, so lead with socialization: also raise it in `#otel-semantic-conventions`
-on CNCF Slack and at a Semantic Conventions SIG meeting.
+The discussion proposal for a `data.staleness.*` semantic convention, intended
+for the OpenTelemetry Semantic Conventions SIG. It is kept in the repo as a
+record; the live discussion is tracked in the SIG issue linked below once opened.
+
+- Discussion issue: _(add link once posted)_
+- Full design: [`0000-data-staleness.md`](0000-data-staleness.md) · Path to adoption: [`README.md`](README.md)
 
 ---
 
-**Title:** Proposal: semantic conventions for data staleness / freshness
-
-**Body:**
-
-### What
+## What
 
 There is currently no OpenTelemetry semantic convention for **data staleness**
 (a.k.a. data freshness) — *how old the data itself is*. `db.*` and `messaging.*`
@@ -22,7 +19,7 @@ even a standardized consumer-lag metric.
 
 I'd like to gauge interest in standardizing this, and find a sponsor.
 
-### Why it's worth standardizing
+## Why it's worth standardizing
 
 Staleness is a distinct failure mode: a pipeline can have zero errors and low
 latency yet serve hours-old data because a producer stalled. The quantity is
@@ -36,7 +33,7 @@ well understood but not portable:
 
 Putting it in OTEL makes "how old is my data" as portable as latency and errors.
 
-### Proposed shape (Development stability)
+## Proposed shape (Development stability)
 
 A small metric set — `data.staleness.age` / `.lag` / `.last_update.timestamp` /
 `.records.behind` / `.sla.*` — with attributes `data.source.system` (reusing
@@ -45,13 +42,13 @@ A small metric set — `data.staleness.age` / `.lag` / `.last_update.timestamp` 
 composable with `db.*` / `messaging.*`. Full spec, Weaver model, and reference
 implementation: https://github.com/anirudhrajreliability/otel-data-staleness
 
-### Prior art / grounding
+## Prior art / grounding
 
 Age of Information (Kaul/Yates/Gruteser); Peralta's data-freshness survey; the
 data-observability "five pillars"; `dbt source freshness`; Burrow. This is
 explicitly a **consolidation** of a known quantity, not a new metric.
 
-### There's already a working, end-to-end-validated reference
+## There's already a working, end-to-end-validated reference
 
 To de-risk the design, there's a complete reference implementation (Apache-2.0):
 a Python SDK, two OpenTelemetry Collector components (a zero-config receiver and
@@ -86,7 +83,7 @@ This exercise also caught and fixed a real correctness bug (PostgreSQL
 thing presence-only testing misses. (LocalStack is an emulator; the one path that
 still needs real AWS is **MSK IAM** auth, which is documented as such.)
 
-### Relationship to existing proposals
+## Relationship to existing proposals
 
 This complements rather than competes with #3762 (`pipeline.*` for data-pipeline
 runs). That proposal is *execution-centric* — freshness as a quality attribute of
@@ -99,7 +96,7 @@ rather than two incompatible ones. I'm also mindful of the `messaging.*`
 partition / consumer-group work (#797): `data.source.*` and
 `data.staleness.partition` should align with those attributes, not duplicate them.
 
-### Questions for the SIG
+## Questions for the SIG
 
 1. Is there appetite for this in Semantic Conventions? Would anyone involved in
    instrumentation be interested in **co-owning** a new `data.*`/freshness area?

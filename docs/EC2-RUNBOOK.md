@@ -179,20 +179,14 @@ echo "rc=$?"   # expect: 0
 
 ---
 
-## 8. Run the demo stack (Collector + Prometheus + Grafana)
+## 8. Run the demo stack (real Postgres + Kafka + Grafana)
 
-This uses the **stock** Collector image (the SDK emits over OTLP), so no custom
-build is required for the demo.
+This brings up the custom Collector scraping **real** backends (no simulated
+data). The first `up --build` compiles the Collector, which takes a few minutes.
 
 ```bash
-cd deploy
-docker compose up -d
-docker compose ps          # otel-collector, prometheus, grafana all "Up"
-cd ..
-
-# feed it (in the venv from Step 4)
-source .venv/bin/activate
-OTLP_ENDPOINT=http://localhost:4318 python deploy/demo/generator.py &
+sudo docker compose -f deploy/ec2-demo/docker-compose.yaml up -d --build
+bash scripts/smoke-test.sh   # asserts data.staleness.* is flowing + a source is breaching
 ```
 
 View the UIs from your **laptop** via SSH tunnel (keeps ports closed publicly):
@@ -204,13 +198,16 @@ ssh -i YOUR_KEY.pem -N \
 ```
 
 Then open:
-- Grafana → http://localhost:3000 → dashboard **"Data Staleness"**. Within ~30s
-  the `clickstream` source crosses its 30s SLA: **"Sources breaching SLA"** flips
-  to 1 and its age line climbs.
+- Grafana → http://localhost:3000 → dashboard **"Data Staleness"**. Within ~60–90s
+  the seeded-once sources cross their 60s SLA: **"Sources breaching SLA"** rises
+  and the age lines climb, while the freshener-updated sources stay near zero.
 - Prometheus → http://localhost:9090 → query `data_staleness_age`; check
   Status → Rules for `DataStalenessSLABreached`.
 
-Stop the generator with `kill %1`; `cd deploy && docker compose down` when done.
+For the full real-workload validation (accuracy, scale, AWS-native, SDK-live,
+chaos), run `bash scripts/ec2-integration.sh` (see
+[`INTEGRATION-VALIDATION.md`](INTEGRATION-VALIDATION.md)). Tear down with
+`sudo docker compose -f deploy/ec2-demo/docker-compose.yaml down -v`.
 
 ---
 
@@ -399,7 +396,8 @@ curl -s localhost:8889/metrics | grep data_staleness   # metrics exposed
 ## 11. Teardown
 
 ```bash
-cd ~/otel-data-staleness/deploy && docker compose down
+sudo docker compose -f ~/otel-data-staleness/deploy/ec2-demo/docker-compose.yaml down -v
+sudo docker compose -f ~/otel-data-staleness/deploy/integration/docker-compose.yaml down -v 2>/dev/null || true
 kind delete cluster 2>/dev/null || true
 # then terminate the instance:
 aws ec2 terminate-instances --instance-ids <INSTANCE_ID>
@@ -409,6 +407,6 @@ aws ec2 terminate-instances --instance-ids <INSTANCE_ID>
 
 ## Appendix: optional checks
 
-- **Paper**: `sudo apt-get install -y texlive-latex-recommended texlive-latex-extra && cd paper && pdflatex main.tex` → `main.pdf` (7 pages).
+- **Paper**: `sudo apt-get install -y texlive-latex-recommended texlive-latex-extra && cd paper && pdflatex data-staleness-otel-preprint.tex` → `data-staleness-otel-preprint.pdf` (7 pages).
 - **Weaver model**: install `weaver` and run `weaver registry check -r model/registry` to lint the semantic-convention model the way the OTEL SIG would.
 - **Run the CI locally**: every command above mirrors `.github/workflows/ci.yml`; pushing to GitHub runs all 7 jobs automatically.

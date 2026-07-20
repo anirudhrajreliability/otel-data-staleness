@@ -92,4 +92,4 @@ jobs:
         uses: xu-cheng/latex-action@v3
         with:
           working_directory: paper
-          root_file: main.tex
+          root_file: data-staleness-otel-preprint.tex

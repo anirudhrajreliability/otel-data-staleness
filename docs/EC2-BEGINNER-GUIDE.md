@@ -164,7 +164,7 @@ You may be asked once to confirm a package install — press **Enter/Y** if so.
 
 ### What success looks like
 
-- The test stages print things like `50 passed`, `PASS — 0 mismatch(es)`, and
+- The test stages print things like `52 passed`, `PASS — 0 mismatch(es)`, and
   `ok  github.com/otel-data-staleness/...`.
 - The final smoke test prints, after a minute or two:
 
@@ -214,19 +214,20 @@ That's it. Total spend for a ~30-minute test is well under a dollar.
 
 ---
 
-## What "OTEL-standard ready" means — the acceptance checklist
+## What this proves for an OpenTelemetry submission
 
-The EC2 run above is the *evidence* that backs an OpenTelemetry submission. When
-`ec2-bootstrap.sh` exits `0`, every item below has been proven on a clean
-machine — this is exactly what the Semantic Conventions SIG looks for in a
-prototype-backed proposal:
+The EC2 run above is the *evidence* that backs an OpenTelemetry submission — it
+does not by itself make the convention an accepted standard (only the SIG can do
+that). When `ec2-bootstrap.sh` exits `0`, every item below has been demonstrated
+on a clean machine — the kind of prototype-backed evidence the Semantic
+Conventions SIG values:
 
 | # | Requirement the SIG cares about | How this test proves it |
 |---|--------------------------------|-------------------------|
 | 1 | **A written spec exists** | `spec/semantic-conventions.md` (v0.4.0) defines every `data.staleness.*` metric + attribute. |
 | 2 | **A machine-readable model** | `model/registry/data-staleness.yaml` is the OTEL **Weaver** model — the format the SIG models conventions in. |
 | 3 | **Language-agnostic conformance** | `conformance/runner.py` replays vectors and prints `PASS — 0 mismatch(es)`; proves the numbers aren't one library's opinion. |
-| 4 | **A working reference implementation** | Python SDK (**~50 tests**) + Go Collector receiver (**40**) + processor (**9**) all build, vet, and test green. |
+| 4 | **A working reference implementation** | Python SDK (**52 tests**) + Go Collector receiver (**41**) + processor (**9**) all build, vet, and test green. |
 | 5 | **Zero-code adoption path** | The custom Collector builds via OCB and `validate`s the demo config — infra teams need no code changes. |
 | 6 | **It actually emits the metric on real systems** | The live stack scrapes **real** Postgres + Kafka + files; the smoke test asserts `data.staleness.age` is flowing. |
 | 7 | **It's honest under failure** | Stale sources cross their 60s SLA and `data.staleness.sla.breached == 1`; empty/timeouts surface as `probe.errors`, never a fabricated `0`. |

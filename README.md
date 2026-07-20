@@ -102,7 +102,7 @@ docker build -f collector/Dockerfile -t otelcol-datastaleness .
 | [`collector/datastalenessreceiver/`](collector/datastalenessreceiver/) | Go Collector **receiver**: zero-code scraping of SQL, Kafka, Kinesis, file, HTTP sources, plus Schema Registry & DB-migration version drift. |
 | [`collector/builder-config.yaml`](collector/builder-config.yaml) + [`Dockerfile`](collector/Dockerfile) | OCB manifest + Dockerfile to build a custom Collector with both components. |
 | [`conformance/`](conformance/) | Language-agnostic conformance vectors + runner (makes it a *standard*, not one library). |
-| [`deploy/`](deploy/) | `docker-compose` demo (Collector + Prometheus + **Grafana** dashboard + alerts) and a **Helm chart**. |
+| [`deploy/`](deploy/) | Real-backend demos: `ec2-demo/` (Postgres + Kafka smoke test + **Grafana** dashboard) and `integration/` (full real-workload validation), plus a **Helm chart**. |
 | [`paper/`](paper/) | arXiv-style preprint (`data-staleness-otel-preprint.pdf`) and LaTeX source. |
 | [`docs/STALENESS-TAXONOMY.md`](docs/STALENESS-TAXONOMY.md) | Every staleness *type* mapped to the metric/mechanism that captures it. |
 | [`.github/workflows/`](.github/workflows/) | CI (Python + both Go modules + conformance + paper) and PyPI publish. |
@@ -145,22 +145,26 @@ python examples/quickstart.py        # prints data.staleness.* to the console
 cd collector/datastalenessprocessor && go test ./...
 ```
 
-**Demo stack**:
+**Demo stack** (real Postgres + Kafka, one command):
 
 ```bash
-cd deploy && docker compose up -d    # Collector + Prometheus
+sudo docker compose -f deploy/ec2-demo/docker-compose.yaml up -d --build
+bash scripts/smoke-test.sh    # asserts data.staleness.* is flowing + a source is breaching
 ```
+
+For the full real-workload validation (accuracy, scale, AWS-native, SDK-live,
+chaos), see [`docs/INTEGRATION-VALIDATION.md`](docs/INTEGRATION-VALIDATION.md).
 
 ## Status of the components
 
 | Component | Tests | Notes |
 |-----------|-------|-------|
-| Python SDK | 50 passing | probes for SQL/Kafka/pipeline/cache/index/replica/version + dbt & RAG version-currency |
+| Python SDK | 52 passing | probes for SQL/Kafka/pipeline/cache/index/replica/version + dbt & RAG version-currency |
 | Conformance suite | 6 vectors | language-agnostic spec tests |
 | Go processor | 9 passing + benchmark | derives age, evaluates SLAs |
-| Go receiver | 40 passing | SQL/Kafka/Kinesis/file/HTTP + schema-registry & db-migration version-drift; logic tested against hermetic fakes |
+| Go receiver | 41 passing | SQL/Kafka/Kinesis/file/HTTP + schema-registry & db-migration version-drift; logic tested against hermetic fakes |
 | Custom Collector | builds + validates | OCB build with both components + Postgres/MySQL + Kafka + Kinesis clients linked |
-| Paper | builds | 7-page preprint, `pdflatex paper/main.tex` |
+| Paper | builds | 7-page preprint, `pdflatex paper/data-staleness-otel-preprint.tex` |
 
 Building the custom Collector requires **Go 1.25+** (Kafka/collector deps).
 

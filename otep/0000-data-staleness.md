@@ -103,7 +103,7 @@ Collector components) and a conformance test suite — accompanies this OTEP.
 
 The design is backed by a complete Apache-2.0 reference implementation, and it is
 **validated end-to-end against real backends on a clean cloud instance** — not
-just unit-tested. Alongside 50 SDK, 40 receiver, and 9 processor unit tests and a
+just unit-tested. Alongside 52 SDK, 41 receiver, and 9 processor unit tests and a
 language-agnostic conformance suite, a one-command suite stands up real Postgres,
 Kafka, Redis, LocalStack Kinesis, and Confluent Schema Registry and asserts the
 metrics are *numerically correct*, not merely present (11/11 checks green on a

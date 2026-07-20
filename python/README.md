@@ -162,7 +162,7 @@ class MyProbe(StalenessProbe):
 ## Tests
 
 ```bash
-python -m pytest -q                 # 50 tests
+python -m pytest -q                 # 52 tests
 PYTHONPATH=src python ../conformance/runner.py   # conformance vectors
 ```
 

@@ -54,8 +54,10 @@ vocabulary, grounded in the AoI model, including a \emph{differential}
 (source-relative) form for indexes and replicas that trail their upstream.
 Second, we provide a
 reference implementation: a Python SDK that turns per-source \emph{probes} into
-standardized metrics, and an OpenTelemetry Collector processor that centrally
-derives age and evaluates freshness SLAs. Third, we evaluate the
+standardized metrics, a zero-configuration OpenTelemetry Collector receiver that
+scrapes SQL, streaming, object, and version-drift sources with no application
+code, and a Collector processor that centrally derives age and evaluates
+freshness SLAs. Third, we evaluate the
 implementation's correctness and overhead, measuring per-source emission cost
 of \(22\)--\(39\,\mu s\) in the SDK and sub-microsecond per-point processing in
 the Collector. We further validate the implementation end-to-end against real

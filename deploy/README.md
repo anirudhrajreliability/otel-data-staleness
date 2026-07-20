@@ -1,45 +1,39 @@
 > Part of **otel-data-staleness** — see the [root README](../README.md) for the project overview and the SDK-vs-Collector comparison.
 
-# Demo deployment
+# Deployment & demos
 
-A runnable stack showing data-staleness metrics end to end:
+Everything here runs the system against **real** backends — nothing emits
+simulated staleness values.
 
-```
-otel-staleness SDK (generator) --OTLP--> Collector --> Prometheus --> Grafana
-```
+| Path | What it is |
+|------|------------|
+| [`ec2-demo/`](ec2-demo/) | One-command smoke demo: the custom Collector scrapes **real Postgres + Kafka + files**, into Prometheus + a **Grafana** dashboard. Fresh sources stay ~0s; "stale" sources climb and breach their SLA. |
+| [`integration/`](integration/) | Full **real-workload validation** stack: Postgres, Kafka, Redis, LocalStack Kinesis, Confluent Schema Registry, and the SDK in the live path. Asserts numeric accuracy, scale, AWS-native paths, and failure behavior. See [`../docs/INTEGRATION-VALIDATION.md`](../docs/INTEGRATION-VALIDATION.md). |
+| [`helm/`](helm/) | Helm chart to deploy the custom Collector on Kubernetes. |
+| `grafana/`, `prometheus-alerts.yml` | Shared dashboard, provisioning, and freshness alert rules used by the demos. |
 
-This demo uses the **stock** Collector contrib image (no custom build needed),
-because the SDK emits the metrics directly over OTLP. To run the zero-code
-*receiver* or the SLA *processor* instead, build a custom Collector (see
-`../collector/*/README.md`).
+## Quick start (smoke demo)
 
-## Run
+On a machine with Docker (or a fresh EC2 box — see
+[`../docs/EC2-BEGINNER-GUIDE.md`](../docs/EC2-BEGINNER-GUIDE.md)):
 
 ```bash
-docker compose up -d
-# in another shell, on the host:
-pip install otel-staleness opentelemetry-exporter-otlp
-python demo/generator.py
+sudo docker compose -f ec2-demo/docker-compose.yaml up -d --build
+bash ../scripts/smoke-test.sh
 ```
 
-Then open:
+- **Grafana**: http://localhost:3000 (anonymous admin) → dashboard **"Data Staleness"**
+- **Prometheus**: http://localhost:9090 → try `data_staleness_age`,
+  `data_staleness_sla_breached == 1`
 
-- **Grafana**: http://localhost:3000 (anonymous admin) -> dashboard **"Data Staleness"**
-- **Prometheus**: http://localhost:9090 (alerts under Status -> Rules)
+The first `up --build` compiles the custom Collector (a few minutes); reach the
+UIs over an SSH tunnel rather than opening ports publicly.
 
-The `clickstream` source is rigged to fall behind and breach its 30s SLA after
-~30 seconds, so you can watch the "Sources breaching SLA" stat flip and the
-alert fire.
+## Full real-workload validation
 
-## Files
-
-| File | Purpose |
-|------|---------|
-| `docker-compose.yaml` | Collector + Prometheus + Grafana |
-| `otel-collector-config.yaml` | OTLP in, Prometheus out (`add_metric_suffixes: false`) |
-| `prometheus.yml` / `prometheus-alerts.yml` | scrape + freshness alert rules |
-| `grafana/dashboard.json` | importable dashboard (also auto-provisioned) |
-| `demo/generator.py` | simulates four sources, one going stale |
+```bash
+bash ../scripts/ec2-integration.sh    # recommended on t3.xlarge
+```
 
 ## Useful PromQL
 

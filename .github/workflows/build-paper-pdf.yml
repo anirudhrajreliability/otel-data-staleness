@@ -1,0 +1,32 @@
+name: Build paper PDF
+
+# Manually triggered: recompiles the preprint from source and commits the PDF
+# back to the repo, so the committed data-staleness-otel-preprint.pdf always
+# matches the .tex without needing LaTeX installed locally.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-pdf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile preprint
+        uses: xu-cheng/latex-action@v3
+        with:
+          working_directory: paper
+          root_file: data-staleness-otel-preprint.tex
+      - name: Commit the rebuilt PDF (if it changed)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add paper/data-staleness-otel-preprint.pdf
+          if git diff --staged --quiet; then
+            echo "PDF unchanged — nothing to commit."
+          else
+            git commit -m "Rebuild preprint PDF from source [skip ci]"
+            git push
+          fi

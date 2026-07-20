@@ -69,6 +69,9 @@ are *numerically correct*, not merely present:
 
 - **54** Python SDK + **42** receiver + **9** processor unit tests, and a
   language-agnostic **conformance** suite — all green.
+- The machine-readable **Weaver model** passes `weaver registry check` (v0.24.2)
+  with zero violations — the same tool the Semantic Conventions SIG uses to
+  validate and generate conventions.
 - **11/11 real-workload checks** on a fresh EC2 box:
   - **Accuracy** — inject a row with a known event-time; `data.staleness.last_update.timestamp`
     matches it exactly and `age` is correct to the second (not just "a number appeared").

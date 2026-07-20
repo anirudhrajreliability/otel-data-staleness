@@ -84,6 +84,20 @@ jobs:
           helm lint deploy/helm/datastaleness-collector
           helm template ds deploy/helm/datastaleness-collector > /dev/null
 
+  weaver:
+    # Validates the Weaver model with the same tool the Semantic Conventions SIG
+    # uses, so the machine-readable convention can't silently drift.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Weaver
+        run: |
+          curl -sL https://github.com/open-telemetry/weaver/releases/download/v0.24.2/weaver-x86_64-unknown-linux-gnu.tar.xz -o weaver.tar.xz
+          tar -xf weaver.tar.xz
+          echo "$PWD/weaver-x86_64-unknown-linux-gnu" >> "$GITHUB_PATH"
+      - name: Weaver registry check
+        run: weaver registry check -r model/registry
+
   paper:
     runs-on: ubuntu-latest
     steps:

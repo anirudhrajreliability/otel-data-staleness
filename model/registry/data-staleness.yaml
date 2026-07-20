@@ -12,13 +12,13 @@ groups:
         type:
           allow_custom_values: true
           members:
-            - { id: postgresql, value: "postgresql", brief: "PostgreSQL" }
-            - { id: kafka, value: "kafka", brief: "Apache Kafka" }
-            - { id: dbt, value: "dbt", brief: "dbt" }
-            - { id: redis, value: "redis", brief: "Redis" }
-            - { id: s3, value: "s3", brief: "Amazon S3" }
-            - { id: pinecone, value: "pinecone", brief: "Pinecone vector DB" }
-            - { id: docs, value: "docs", brief: "Documentation / RAG content set" }
+            - { id: postgresql, value: "postgresql", brief: "PostgreSQL", stability: development }
+            - { id: kafka, value: "kafka", brief: "Apache Kafka", stability: development }
+            - { id: dbt, value: "dbt", brief: "dbt", stability: development }
+            - { id: redis, value: "redis", brief: "Redis", stability: development }
+            - { id: s3, value: "s3", brief: "Amazon S3", stability: development }
+            - { id: pinecone, value: "pinecone", brief: "Pinecone vector DB", stability: development }
+            - { id: docs, value: "docs", brief: "Documentation / RAG content set", stability: development }
         stability: development
         requirement_level: required
         brief: The data system the source belongs to.
@@ -39,19 +39,19 @@ groups:
         type:
           allow_custom_values: true
           members:
-            - { id: max_timestamp, value: "max_timestamp", brief: "now - MAX(ts) from a column" }
-            - { id: watermark, value: "watermark", brief: "explicit stream watermark" }
-            - { id: consumer_lag, value: "consumer_lag", brief: "broker offset / record time" }
-            - { id: run_completion, value: "run_completion", brief: "last successful job end" }
-            - { id: object_mtime, value: "object_mtime", brief: "object last-modified" }
-            - { id: ttl_age, value: "ttl_age", brief: "cache key write time" }
-            - { id: heartbeat, value: "heartbeat", brief: "last heartbeat" }
-            - { id: writetime, value: "writetime", brief: "per-cell write timestamp" }
-            - { id: snapshot, value: "snapshot", brief: "lakehouse snapshot commit" }
-            - { id: replication_lag, value: "replication_lag", brief: "target vs source (differential)" }
-            - { id: index_lag, value: "index_lag", brief: "index vs source corpus (differential)" }
-            - { id: version_drift, value: "version_drift", brief: "content describes an older release than current" }
-            - { id: end_to_end, value: "end_to_end", brief: "age propagated across pipeline hops via baggage" }
+            - { id: max_timestamp, value: "max_timestamp", brief: "now - MAX(ts) from a column", stability: development }
+            - { id: watermark, value: "watermark", brief: "explicit stream watermark", stability: development }
+            - { id: consumer_lag, value: "consumer_lag", brief: "broker offset / record time", stability: development }
+            - { id: run_completion, value: "run_completion", brief: "last successful job end", stability: development }
+            - { id: object_mtime, value: "object_mtime", brief: "object last-modified", stability: development }
+            - { id: ttl_age, value: "ttl_age", brief: "cache key write time", stability: development }
+            - { id: heartbeat, value: "heartbeat", brief: "last heartbeat", stability: development }
+            - { id: writetime, value: "writetime", brief: "per-cell write timestamp", stability: development }
+            - { id: snapshot, value: "snapshot", brief: "lakehouse snapshot commit", stability: development }
+            - { id: replication_lag, value: "replication_lag", brief: "target vs source (differential)", stability: development }
+            - { id: index_lag, value: "index_lag", brief: "index vs source corpus (differential)", stability: development }
+            - { id: version_drift, value: "version_drift", brief: "content describes an older release than current", stability: development }
+            - { id: end_to_end, value: "end_to_end", brief: "age propagated across pipeline hops via baggage", stability: development }
         stability: development
         requirement_level: recommended
         brief: How the staleness value was derived.
@@ -65,9 +65,9 @@ groups:
         type:
           allow_custom_values: true
           members:
-            - { id: ingest, value: "ingest", brief: "ingestion" }
-            - { id: transform, value: "transform", brief: "transformation" }
-            - { id: serve, value: "serve", brief: "serving" }
+            - { id: ingest, value: "ingest", brief: "ingestion", stability: development }
+            - { id: transform, value: "transform", brief: "transformation", stability: development }
+            - { id: serve, value: "serve", brief: "serving", stability: development }
         stability: development
         requirement_level: opt_in
         brief: Pipeline position where the measurement was taken.

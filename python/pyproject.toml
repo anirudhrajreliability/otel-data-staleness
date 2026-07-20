@@ -3,13 +3,13 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "otel-staleness"
+name = "data-staleness-otel"
 version = "0.4.0"
-description = "Vendor-neutral OpenTelemetry data-staleness (data freshness) instrumentation"
+description = "Vendor-neutral data-staleness / data-freshness instrumentation built on OpenTelemetry (community project; not an official OpenTelemetry package)"
 readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "Apache-2.0" }
-authors = [{ name = "otel-data-staleness contributors" }]
+authors = [{ name = "Anirudh Rajmohan" }]
 keywords = ["opentelemetry", "observability", "data-freshness", "data-staleness", "age-of-information"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -25,9 +25,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/otel-data-staleness/otel-data-staleness"
-Repository = "https://github.com/otel-data-staleness/otel-data-staleness"
-Specification = "https://github.com/otel-data-staleness/otel-data-staleness/blob/main/spec/semantic-conventions.md"
+Homepage = "https://github.com/anirudhrajreliability/otel-data-staleness"
+Repository = "https://github.com/anirudhrajreliability/otel-data-staleness"
+Issues = "https://github.com/anirudhrajreliability/otel-data-staleness/issues"
+Specification = "https://github.com/anirudhrajreliability/otel-data-staleness/blob/main/spec/semantic-conventions.md"
 
 [project.optional-dependencies]
 sql = ["sqlalchemy>=1.4"]

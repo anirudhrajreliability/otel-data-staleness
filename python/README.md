@@ -1,10 +1,17 @@
-> Part of **otel-data-staleness** — see the [root README](../README.md) for the project overview and the SDK-vs-Collector comparison.
+> Part of **otel-data-staleness** — see the [root README](https://github.com/anirudhrajreliability/otel-data-staleness/blob/main/README.md) for the project overview and the SDK-vs-Collector comparison.
 
-# otel-staleness (Python SDK)
+# data-staleness-otel (Python SDK)
 
-Vendor-neutral OpenTelemetry instrumentation for **data staleness / data
-freshness**, implementing the conventions in
-[`../spec/semantic-conventions.md`](../spec/semantic-conventions.md).
+> **Disclaimer:** This is an independent, community project. It is **not** an
+> official OpenTelemetry project and is **not** endorsed by or affiliated with
+> the OpenTelemetry project or the CNCF. It is *built on* OpenTelemetry; the
+> `data.staleness.*` semantic convention is a **proposal** under discussion with
+> the Semantic Conventions SIG ([#3909](https://github.com/open-telemetry/semantic-conventions/issues/3909)),
+> at "Development" stability — names may change and it is not an accepted standard.
+
+Vendor-neutral instrumentation for **data staleness / data freshness**, built on
+OpenTelemetry, implementing the conventions in
+[`../spec/semantic-conventions.md`](https://github.com/anirudhrajreliability/otel-data-staleness/blob/main/spec/semantic-conventions.md).
 
 You give the SDK *probes* that report the event time of the freshest record for
 a logical source; it emits the standardized `data.staleness.*` metrics
@@ -14,8 +21,8 @@ normal OpenTelemetry metrics pipeline (OTLP, Prometheus, console, etc.).
 ## Install
 
 ```bash
-pip install -e .              # core
-pip install -e ".[sql,kafka,cache,dev]"   # with optional integrations
+pip install data-staleness-otel                     # core (imported as `otel_staleness`)
+pip install "data-staleness-otel[sql,kafka,cache]"  # with optional integrations
 ```
 
 ## Quick start
@@ -141,7 +148,7 @@ dimensions a backend cannot reconstruct: `data.staleness.age.peak` (Peak AoI),
 `data.staleness.update.interval` (cadence histogram), `data.staleness.partition.skew`
 (straggler partitions), and `data.staleness.probe.errors` (a failing probe is now
 **visible**, not silently swallowed — pass `add_probe(p, name="...")` to label it).
-See [`../docs/STALENESS-TAXONOMY.md`](../docs/STALENESS-TAXONOMY.md) for the full
+See [`../docs/STALENESS-TAXONOMY.md`](https://github.com/anirudhrajreliability/otel-data-staleness/blob/main/docs/STALENESS-TAXONOMY.md) for the full
 map of staleness types to mechanisms.
 
 ## Custom probes

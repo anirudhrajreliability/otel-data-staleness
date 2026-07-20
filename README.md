@@ -1,8 +1,16 @@
 # otel-data-staleness
 
-A vendor-neutral **OpenTelemetry semantic convention for data staleness (data
-freshness)**, plus a reference implementation: a Python SDK plus
+A vendor-neutral semantic convention for **data staleness (data freshness)**,
+built on OpenTelemetry, plus a reference implementation: a Python SDK plus
 OpenTelemetry Collector receiver and processor components. Released under Apache-2.0.
+
+> **Disclaimer.** This is an independent, community project — **not** an official
+> OpenTelemetry project, and **not** endorsed by or affiliated with the
+> OpenTelemetry project or the CNCF. It is *built on* OpenTelemetry. The
+> `data.staleness.*` convention is a **proposal** under discussion with the
+> Semantic Conventions SIG ([#3909](https://github.com/open-telemetry/semantic-conventions/issues/3909)),
+> at "Development" stability — names may change and it is **not** an accepted
+> OpenTelemetry standard.
 
 > **What problem this solves.** Freshness is a well-studied quantity — it is the
 > *Age of Information* from networked-systems research, and it is what every
@@ -20,7 +28,7 @@ that unifies the whole project; each implementation tracks it.
 | Component | Latest version |
 |-----------|----------------|
 | **Convention / spec** (`spec/semantic-conventions.md`) | **0.4.0** |
-| Python SDK — `otel-staleness` | 0.4.0 |
+| Python SDK — `data-staleness-otel` (imports as `otel_staleness`) | 0.4.0 |
 | Collector receiver — `datastalenessreceiver` | 0.4.0 |
 | Collector processor — `datastalenessprocessor` | 0.4.0 |
 | Weaver model / conformance suite | tracks 0.4.0 |
@@ -97,7 +105,7 @@ docker build -f collector/Dockerfile -t otelcol-datastaleness .
 | [`FEATURES.md`](FEATURES.md) | The full plain-English feature list. |
 | [`spec/semantic-conventions.md`](spec/semantic-conventions.md) | The proposed `data.staleness.*` metrics and attributes (OTEP-ready). |
 | [`model/registry/data-staleness.yaml`](model/registry/data-staleness.yaml) | Machine-readable OTEL **Weaver** model (validation + multi-language codegen). |
-| [`python/`](python/) | `otel-staleness` — pip-installable SDK with probes for SQL, Kafka, pipelines, caches, plus differential (index/replica) probes and a **dbt integration**. |
+| [`python/`](python/) | `data-staleness-otel` — pip-installable SDK (imports as `otel_staleness`) with probes for SQL, Kafka, pipelines, caches, plus differential (index/replica) probes and a **dbt integration**. |
 | [`collector/datastalenessprocessor/`](collector/datastalenessprocessor/) | Go Collector metrics processor: derives age, evaluates freshness SLAs. |
 | [`collector/datastalenessreceiver/`](collector/datastalenessreceiver/) | Go Collector **receiver**: zero-code scraping of SQL, Kafka, Kinesis, file, HTTP sources, plus Schema Registry & DB-migration version drift. |
 | [`collector/builder-config.yaml`](collector/builder-config.yaml) + [`Dockerfile`](collector/Dockerfile) | OCB manifest + Dockerfile to build a custom Collector with both components. |

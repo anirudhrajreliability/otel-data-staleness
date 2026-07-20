@@ -6,6 +6,9 @@ build/
 dist/
 .venv/
 .pytest_cache/
+# stray sdist build-staging dirs (if `python -m build` runs inside python/)
+python/otel_staleness-*/
+python/data_staleness_otel-*/
 
 # Go / OpenTelemetry Collector Builder output
 _build/

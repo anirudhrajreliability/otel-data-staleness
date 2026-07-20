@@ -1,13 +1,10 @@
 # [Ready to post] Semantic Conventions discussion issue
 
-Post this in **open-telemetry/semantic-conventions** as a new issue
-(type: *New convention* / discussion). Keep it short — the goal is to gauge
-appetite and find a sponsor, not to merge a spec on day one.
-
-> **Before posting:** the repo must be **public** for the links below to resolve
-> (it is currently private). Make it public, or move it to a public org, then
-> confirm the URL. The links below use `github.com/anirudhrajreliability/otel-data-staleness`
-> — update if you publish elsewhere.
+Post this as a **new issue** in `open-telemetry/semantic-conventions`. Keep it
+short — the goal is to gauge appetite and find **co-owners** for a new area, not
+to merge a spec on day one. A new `data.*` area needs an active owning group per
+`AREAS.md`, so lead with socialization: also raise it in `#otel-semantic-conventions`
+on CNCF Slack and at a Semantic Conventions SIG meeting.
 
 ---
 
@@ -45,8 +42,8 @@ A small metric set — `data.staleness.age` / `.lag` / `.last_update.timestamp` 
 `.records.behind` / `.sla.*` — with attributes `data.source.system` (reusing
 `db.system.name` / `messaging.system`), `data.source.name`, `.namespace`,
 `data.staleness.method`, `.partition`, `data.pipeline.stage`. Orthogonal to and
-composable with `db.*` / `messaging.*`. Full draft + OTEP:
-https://github.com/anirudhrajreliability/otel-data-staleness
+composable with `db.*` / `messaging.*`. Full spec, Weaver model, and reference
+implementation: https://github.com/anirudhrajreliability/otel-data-staleness
 
 ### Prior art / grounding
 
@@ -91,10 +88,11 @@ still needs real AWS is **MSK IAM** auth, which is documented as such.)
 
 ### Questions for the SIG
 
-1. Is there appetite for this in Semantic Conventions? Is a sponsor available?
+1. Is there appetite for this in Semantic Conventions? Would anyone involved in
+   instrumentation be interested in **co-owning** a new `data.*`/freshness area?
 2. `data.staleness.*` vs `data.freshness.*`, and is `data.*` an acceptable new
    root?
-3. Should this start as a federated/third-party extension (per the 2026 roadmap)
+3. Should this start as a decentralized/third-party registry (built on Weaver)
    and migrate into core once adopted?
 4. Should SLA threshold/breach be in the convention, or left to the backend?
 

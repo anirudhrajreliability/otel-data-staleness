@@ -99,6 +99,33 @@ A full specification with every metric, attribute, method value, and per-source
 recipe — plus a reference implementation (a Python SDK and two OpenTelemetry
 Collector components) and a conformance test suite — accompanies this OTEP.
 
+### Reference implementation and validation
+
+The design is backed by a complete Apache-2.0 reference implementation, and it is
+**validated end-to-end against real backends on a clean cloud instance** — not
+just unit-tested. Alongside 50 SDK, 40 receiver, and 9 processor unit tests and a
+language-agnostic conformance suite, a one-command suite stands up real Postgres,
+Kafka, Redis, LocalStack Kinesis, and Confluent Schema Registry and asserts the
+metrics are *numerically correct*, not merely present (11/11 checks green on a
+fresh EC2 instance):
+
+- **Accuracy** — inject a record with a known event-time; `last_update.timestamp`
+  matches it exactly and `age` is correct to the second.
+- **Scale / lag** — a pinned Kafka consumer backlog yields `records.behind == 100`
+  exactly; a multi-partition topic reports per-partition freshness.
+- **AWS-native paths** — live Kinesis freshness, Schema Registry version drift,
+  and DB-migration drift.
+- **SDK in the live path** — the SDK probes real Postgres + Redis and exports via OTLP.
+- **Honest failure** — a future timestamp clamps `age` to ≥ 0; a stopped source
+  surfaces `data.staleness.probe.errors` (never a fabricated `0`) and recovers on
+  restart.
+
+This exercise validated the "derive, don't emit" and "honest measurement"
+principles above under real failure conditions, and surfaced a real correctness
+bug (a `Decimal` returned by PostgreSQL's `EXTRACT(EPOCH …)` that the SDK
+initially rejected) that presence-only testing would have missed. (The one path
+still requiring real AWS is MSK IAM authentication, documented as such.)
+
 ## Internal details
 
 - **Instrument choice.** Freshness is a current-value signal → observable

@@ -86,6 +86,19 @@ This exercise also caught and fixed a real correctness bug (PostgreSQL
 thing presence-only testing misses. (LocalStack is an emulator; the one path that
 still needs real AWS is **MSK IAM** auth, which is documented as such.)
 
+### Relationship to existing proposals
+
+This complements rather than competes with #3762 (`pipeline.*` for data-pipeline
+runs). That proposal is *execution-centric* — freshness as a quality attribute of
+a pipeline *run* (Databricks/dbt/Glue); this one is *source-centric* — the Age of
+Information of *any* data source (table, topic, cache, index, replica, RAG
+corpus), independent of whether a pipeline produced it. They compose:
+`pipeline.quality.freshness_lag_seconds` in #3762 could reuse
+`data.staleness.age` / `.lag`, so the ecosystem gets **one** freshness primitive
+rather than two incompatible ones. I'm also mindful of the `messaging.*`
+partition / consumer-group work (#797): `data.source.*` and
+`data.staleness.partition` should align with those attributes, not duplicate them.
+
 ### Questions for the SIG
 
 1. Is there appetite for this in Semantic Conventions? Would anyone involved in

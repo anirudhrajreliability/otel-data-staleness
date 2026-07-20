@@ -2,8 +2,12 @@
 
 Post this in **open-telemetry/semantic-conventions** as a new issue
 (type: *New convention* / discussion). Keep it short — the goal is to gauge
-appetite and find a sponsor, not to merge a spec on day one. Fill in the two
-`<...>` links after you push the repo public.
+appetite and find a sponsor, not to merge a spec on day one.
+
+> **Before posting:** the repo must be **public** for the links below to resolve
+> (it is currently private). Make it public, or move it to a public org, then
+> confirm the URL. The links below use `github.com/anirudhrajreliability/otel-data-staleness`
+> — update if you publish elsewhere.
 
 ---
 
@@ -41,7 +45,8 @@ A small metric set — `data.staleness.age` / `.lag` / `.last_update.timestamp` 
 `.records.behind` / `.sla.*` — with attributes `data.source.system` (reusing
 `db.system.name` / `messaging.system`), `data.source.name`, `.namespace`,
 `data.staleness.method`, `.partition`, `data.pipeline.stage`. Orthogonal to and
-composable with `db.*` / `messaging.*`. Full draft + OTEP: `<repo link>`.
+composable with `db.*` / `messaging.*`. Full draft + OTEP:
+https://github.com/anirudhrajreliability/otel-data-staleness
 
 ### Prior art / grounding
 
@@ -49,12 +54,37 @@ Age of Information (Kaul/Yates/Gruteser); Peralta's data-freshness survey; the
 data-observability "five pillars"; `dbt source freshness`; Burrow. This is
 explicitly a **consolidation** of a known quantity, not a new metric.
 
-### There's already a working reference
+### There's already a working, end-to-end-validated reference
 
 To de-risk the design, there's a complete reference implementation (Apache-2.0):
 a Python SDK, two OpenTelemetry Collector components (a zero-config receiver and
-an SLA processor) covering SQL/warehouses, Kafka, Kinesis, files/HTTP, plus a
-Weaver model and a language-agnostic conformance suite. `<repo link>`
+an SLA processor) covering SQL/warehouses, Kafka, Kinesis, files/HTTP, Schema
+Registry and DB-migration drift, plus a Weaver model and a language-agnostic
+conformance suite. https://github.com/anirudhrajreliability/otel-data-staleness
+
+It's not just unit-tested — it's **validated end-to-end against real backends on
+a clean cloud instance**. A one-command suite stands up real Postgres + Kafka +
+Redis + LocalStack Kinesis + Confluent Schema Registry and asserts the metrics
+are *numerically correct*, not merely present:
+
+- **50** Python SDK + **40** receiver + **9** processor unit tests, and a
+  language-agnostic **conformance** suite — all green.
+- **11/11 real-workload checks** on a fresh EC2 box:
+  - **Accuracy** — inject a row with a known event-time; `data.staleness.last_update.timestamp`
+    matches it exactly and `age` is correct to the second (not just "a number appeared").
+  - **Scale / lag** — a pinned Kafka consumer backlog yields `records.behind == 100`
+    exactly; a multi-partition topic reports per-partition freshness.
+  - **AWS-native** — live Kinesis freshness (LocalStack), Schema Registry version
+    drift, and DB-migration drift.
+  - **SDK in the live path** — the SDK probes real Postgres + Redis and exports via OTLP.
+  - **Failure behavior** — a future timestamp clamps `age` to ≥ 0; stopping Postgres
+    surfaces `data.staleness.probe.errors` (a broken check is *visible*, never a
+    fabricated `0`); the source recovers on restart.
+
+This exercise also caught and fixed a real correctness bug (PostgreSQL
+`EXTRACT(EPOCH …)` returns a `Decimal` the SDK initially rejected) — the kind of
+thing presence-only testing misses. (LocalStack is an emulator; the one path that
+still needs real AWS is **MSK IAM** auth, which is documented as such.)
 
 ### Questions for the SIG
 

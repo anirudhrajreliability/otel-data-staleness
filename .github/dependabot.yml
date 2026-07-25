@@ -1,0 +1,39 @@
+version: 2
+updates:
+  # Go Collector receiver
+  - package-ecosystem: "gomod"
+    directory: "/collector/datastalenessreceiver"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      go-deps:
+        patterns: ["*"]
+
+  # Go Collector processor
+  - package-ecosystem: "gomod"
+    directory: "/collector/datastalenessprocessor"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      go-deps:
+        patterns: ["*"]
+
+  # Python SDK
+  - package-ecosystem: "pip"
+    directory: "/python"
+    schedule:
+      interval: "weekly"
+
+  # Integration test service
+  - package-ecosystem: "pip"
+    directory: "/deploy/integration/sdk-service"
+    schedule:
+      interval: "weekly"
+
+  # GitHub Actions workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

@@ -9,7 +9,7 @@ jobs:
   python:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
@@ -27,7 +27,7 @@ jobs:
   go-processor:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version: "1.25"
@@ -41,7 +41,7 @@ jobs:
   go-receiver:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version: "1.25"
@@ -56,7 +56,7 @@ jobs:
     # Builds a real Collector with both components via OCB and validates a config.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version: "1.25"
@@ -70,14 +70,14 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build collector image
         run: docker build -f collector/Dockerfile -t otelcol-datastaleness:ci .
 
   helm:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: azure/setup-helm@v4
       - name: Lint and render chart
         run: |
@@ -89,7 +89,7 @@ jobs:
     # uses, so the machine-readable convention can't silently drift.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Weaver
         run: |
           curl -sL https://github.com/open-telemetry/weaver/releases/download/v0.24.2/weaver-x86_64-unknown-linux-gnu.tar.xz -o weaver.tar.xz
@@ -101,7 +101,7 @@ jobs:
   paper:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Compile preprint
         uses: xu-cheng/latex-action@v4
         with:

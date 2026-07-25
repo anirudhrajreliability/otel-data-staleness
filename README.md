@@ -12,13 +12,27 @@ OpenTelemetry Collector receiver and processor components. Released under Apache
 > at "Development" stability — names may change and it is **not** an accepted
 > OpenTelemetry standard.
 
-> **What problem this solves.** Freshness is a well-studied quantity — it is the
-> *Age of Information* from networked-systems research, and it is what every
-> data-observability vendor already computes internally. But there is no
-> portable way to *emit* it. OpenTelemetry standardizes latency, errors, and
-> throughput across vendors; it has **no** convention for "how old is my data."
-> This project proposes one and ships the code to produce it. The contribution
-> is **standardization and consolidation**, not a new metric.
+> **What problem this solves.** Freshness is a well-studied quantity — the
+> *Age of Information* — and single-system freshness is often already solved
+> locally with a `MAX(updated_at)` query. But two signals have **no**
+> OpenTelemetry standard at all: a portable **streaming consumer/freshness-lag**
+> metric, and **differential** freshness (how far an index, replica, or cache
+> trails its source — the silent failure behind stale RAG retrieval). Both are
+> the same primitive (Age of Information) applied to different sources. This
+> project defines that primitive, `data.staleness.*`, and ships the code to emit
+> it; the broader source coverage (SQL, files, caches, …) is opt-in portability
+> for teams that want one freshness vocabulary across a pipeline. The
+> contribution is **standardization and consolidation**, not a new metric.
+
+> **Why now.** As systems increasingly *act* on data automatically, freshness
+> failures get newly expensive. A retrieval-augmented-generation (RAG) index that
+> lags the corpus it was built from — or an agent reasoning over stale shared
+> state — returns confidently wrong output with **no error or latency anomaly to
+> alert on**. This is exactly the regime *Age of Information* was created to
+> analyze in real-time control. The SDK's **differential probes**
+> (index-vs-corpus, replica-vs-primary) target this failure mode directly, so the
+> same `data.staleness.*` signal covers databases, streams, and vector indexes
+> alike.
 
 ## Versions
 

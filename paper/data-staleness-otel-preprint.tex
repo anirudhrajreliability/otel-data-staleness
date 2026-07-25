@@ -44,10 +44,16 @@ data-observability tools, there is no portable, vendor-neutral way to
 standard for observability signals, defines semantic conventions for database
 and messaging operations but none for data staleness; freshness today is
 re-implemented, incompatibly, inside each observability vendor and each data
-platform. We address this gap with three contributions. First, we propose a
+platform. While single-system freshness is often solved locally with a
+\texttt{MAX(updated\_at)} query, two signals have no standard at all: a portable
+streaming consumer/freshness-lag metric, and a \emph{differential}
+(source-relative) freshness that expresses how far an index, replica, or cache
+trails its upstream---the silent failure mode behind stale retrieval-augmented
+generation and lagging replicas. We address this gap with three contributions. First, we propose a
 compact OpenTelemetry semantic convention for data staleness---a small set of
-metrics (\texttt{data.staleness.age}, \texttt{lag}, \texttt{last\_update},
-\texttt{records.behind}, and SLA threshold/breach signals) and attributes that
+metrics (\texttt{data.staleness.age}, \texttt{lag},
+\texttt{last\_update.timestamp}, \texttt{records.behind}, and SLA
+threshold/breach signals) and attributes that
 unify freshness across SQL warehouses, streaming systems, batch pipelines,
 caches, NoSQL and lakehouse stores, and search/vector indexes under one
 vocabulary, grounded in the AoI model, including a \emph{differential}
@@ -106,6 +112,19 @@ is. As of the 1.42 conventions and the published 2026 semantic-conventions
 roadmap, there is no data-freshness metric, and not even a standardized
 consumer-lag metric~\cite{otelmessaging,otelroadmap}.
 
+\paragraph{Why now.}
+The cost of missing freshness telemetry is rising as systems increasingly
+\emph{act} on data automatically. Retrieval-augmented generation (RAG) answers
+from a vector index that, once it lags the corpus it was built from, returns
+confidently wrong results with no error or latency anomaly to alert on; online
+feature stores exhibit analogous online--offline skew; and multi-agent systems
+coordinate over shared state whose staleness directly degrades decisions. This
+regime---autonomous consumers reacting to the most recent available
+update---is precisely the setting in which AoI was
+introduced~\cite{kaul2012,yates2021survey}. Freshness is therefore not a newly
+invented concern but a long-studied one whose \emph{absence from standard
+telemetry} has become newly expensive.
+
 This paper closes that gap. We argue that freshness deserves the same
 treatment latency received: a small, agreed-upon convention plus reference
 instrumentation, so any producer can emit it and any backend can consume it.
@@ -116,7 +135,8 @@ Concretely, we contribute:
   freshness uniformly across SQL/warehouse, streaming, batch-pipeline, and
   cache/object-store sources.
   \item \textbf{A reference implementation} (Sections~\ref{sec:design}--\ref{sec:impl}):
-  an Apache-2.0 Python SDK (\texttt{otel-staleness}) built on
+  an Apache-2.0 Python SDK (\texttt{data-staleness-otel}, importable as
+  \texttt{otel\_staleness}) built on
   \texttt{opentelemetry-python}, a zero-configuration Go OpenTelemetry Collector
   \emph{receiver} (\texttt{datastalenessreceiver}) that scrapes sources with no
   application code, and a Go Collector \emph{processor}
@@ -166,8 +186,8 @@ OTEL standardizes telemetry emission and, via semantic conventions, the
 database and messaging metrics~\cite{otelmessaging}, and the data model includes
 a low-level Prometheus-style ``staleness marker'' for missing
 timeseries---an unrelated concept to data freshness. No convention emits data
-age. Our work proposes one and is structured to serve as the basis for an
-OpenTelemetry Enhancement Proposal (OTEP).
+age. Our work proposes one and is structured to serve as the basis for a
+new-area proposal to the OpenTelemetry Semantic Conventions working group.
 
 \paragraph{Positioning.}
 Table~\ref{tab:related} summarizes how existing approaches relate to the three
@@ -289,7 +309,7 @@ application code, a zero-configuration Collector \emph{receiver} that
 \emph{scrapes} sources with no application code, and a Collector \emph{processor}
 that can \emph{derive and evaluate} freshness centrally.
 
-\paragraph{Architecture (textual).}
+\paragraph{Architecture.}
 \textit{Producers} expose freshness via \emph{probes}. A probe reports the event
 time of the freshest record for one logical source. The \texttt{StalenessMonitor}
 registers the standardized observable gauges once and, on each collection,
@@ -324,7 +344,7 @@ configuration in the Collector, not hard-coded in applications.
 \label{sec:impl}
 
 \subsection{Python SDK}
-\texttt{otel-staleness} is built on \texttt{opentelemetry-api/sdk}. The core is
+\texttt{data-staleness-otel} (import package \texttt{otel\_staleness}) is built on \texttt{opentelemetry-api/sdk}. The core is
 a \texttt{FreshnessReading} dataclass and a \texttt{StalenessMonitor} that
 registers the convention's instruments via observable-gauge callbacks. Probes
 ship for the four core families (SQL/warehouse, streaming, batch, cache/object
@@ -390,7 +410,9 @@ processors:
 \section{Evaluation}
 \label{sec:eval}
 We evaluate (i) functional correctness and (ii) runtime overhead. Experiments
-ran in a containerized Linux environment (Python 3.10, Go 1.25, 2 vCPU).
+ran in a containerized Linux environment (Python 3.10, Go 1.25, 2 vCPU); all
+benchmarks, unit suites, and the end-to-end integration validation are scripted
+and reproducible from the released repository.
 
 \subsection{Correctness}
 All three components ship with unit tests asserting the convention's semantics:
@@ -462,8 +484,8 @@ clamp to non-negative but do not yet correct skew (e.g.\ via NTP offset
 attributes). The convention intentionally omits richer freshness variants from
 AoI theory (Peak AoI, Age of Incorrect Information); these could be added as
 optional metrics. Finally, the names here are a Development-stage proposal: the
-intended path to adoption is an OTEP and community review, during which names may
-change. Additional first-party probes and source types (BigQuery and Snowflake
+intended path to adoption is a semantic-conventions proposal and community
+review, during which names may change. Additional first-party probes and source types (BigQuery and Snowflake
 information-schema freshness, GCS, lakehouse snapshot age) are straightforward
 extensions of the existing SDK and receiver.
 
@@ -479,10 +501,13 @@ with the same rigor they already apply to ``how fast'' and ``how broken.''
 
 \section*{Artifact Availability}
 The semantic-convention specification, a machine-readable Weaver model, a
-language-agnostic conformance suite, the Python SDK (\texttt{otel-staleness}),
+language-agnostic conformance suite, the Python SDK (\texttt{data-staleness-otel}),
 the Go Collector receiver (\texttt{datastalenessreceiver}) and processor
 (\texttt{datastalenessprocessor}), the integration-validation suite, demo
-deployments, and benchmarks are released as open source under Apache-2.0.
+deployments, and benchmarks are released as open source under Apache-2.0 at
+\url{https://github.com/anirudhrajreliability/otel-data-staleness}. The Python
+package is installable via \texttt{pip install data-staleness-otel}; all
+benchmarks and validations reported here are reproducible from the repository.
 
 \begin{thebibliography}{99}
 \footnotesize

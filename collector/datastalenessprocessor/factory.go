@@ -37,7 +37,7 @@ func createMetricsProcessor(
 ) (processor.Metrics, error) {
 	pCfg := cfg.(*Config)
 	sp := newProcessor(pCfg, set.Logger)
-	return processorhelper.NewMetricsProcessor(
+	return processorhelper.NewMetrics(
 		ctx, set, cfg, next,
 		sp.processMetrics,
 		processorhelper.WithCapabilities(consumer.Capabilities{MutatesData: true}),

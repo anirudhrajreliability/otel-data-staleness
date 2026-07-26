@@ -1,28 +1,28 @@
 # OpenTelemetry Collector Builder (OCB) manifest for a Collector that includes
 # the data-staleness receiver and processor.
-#   go install go.opentelemetry.io/collector/cmd/builder@v0.110.0
+#   go install go.opentelemetry.io/collector/cmd/builder@v0.157.0
 #   builder --config=collector/builder-config.yaml
 dist:
   name: otelcol-datastaleness
   description: OpenTelemetry Collector with data-staleness components
   output_path: ./_build
-  otelcol_version: 0.110.0
+  otelcol_version: 0.157.0
 
 providers:
-  - gomod: go.opentelemetry.io/collector/confmap/provider/envprovider v1.16.0
-  - gomod: go.opentelemetry.io/collector/confmap/provider/fileprovider v1.16.0
+  - gomod: go.opentelemetry.io/collector/confmap/provider/envprovider v1.63.0
+  - gomod: go.opentelemetry.io/collector/confmap/provider/fileprovider v1.63.0
 
 receivers:
-  - gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.110.0
+  - gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.157.0
   - gomod: github.com/otel-data-staleness/datastalenessreceiver v0.4.0
 
 processors:
-  - gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.110.0
+  - gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.157.0
   - gomod: github.com/otel-data-staleness/datastalenessprocessor v0.4.0
 
 exporters:
-  - gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.110.0
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.110.0
+  - gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.157.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.157.0
 
 # Local source until the components are published to a module proxy.
 replaces:
